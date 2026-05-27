@@ -5,7 +5,6 @@ maps results to switch IPs via the switch dictionary.
 """
 
 import logging
-import re
 import time
 from dataclasses import dataclass
 
@@ -196,7 +195,7 @@ def crawl_single_ap(
     ap: APEntry,
     switch_dict: dict[str, str],
     config: Config,
-) -> CrawlResult:
+) -> list[CrawlResult]:
     """Connect to single AP via stelnet, get LLDP data, map to switch.
 
     Sequence:
@@ -221,27 +220,14 @@ def crawl_single_ap(
             r"Update the server's public key": "Y",
         }
 
-        # Wait for AP prompt. Also detect connection failures.
-        # Use longer timeout if NAT is detected (WAC shows "Please wait..." with dots)
+        # Wait for AP prompt only. Don't match "connection was closed" as it
+        # can be leftover from the previous AP's quit sequence.
+        # If connection truly fails, it will timeout.
         output = session.wait_for_prompt(
-            patterns=[AP_PROMPT, r"connection was closed"],
+            patterns=[AP_PROMPT],
             timeout=config.ap_connect_timeout,
             auto_respond=auto_respond_map,
         )
-
-        # Check if connection was closed instead of getting AP prompt
-        # Only count as failure if we never got an AP prompt
-        if re.search(r"connection was closed", output, re.IGNORECASE) and not re.search(AP_PROMPT, output):
-            logger.warning("AP '%s' (ID: %d): connection closed by remote host", ap.name, ap.ap_id)
-            try:
-                session.wait_for_prompt(patterns=[WAC_SYSTEM_PROMPT], timeout=5)
-            except TimeoutError:
-                pass
-            return [CrawlResult(
-                ap_name=ap.name, ap_ip=ap.ip,
-                switch_name="N/A", switch_ip="N/A",
-                status="failed", error="Connection closed by remote host",
-            )]
 
         # Step 4: Send LLDP command and wait for output
         lldp_output = session.send_command(

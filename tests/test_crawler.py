@@ -136,17 +136,18 @@ class TestCrawlSingleAp:
         assert results[0].switch_ip == "N/A"
 
     def test_connection_closed_by_remote(self):
+        """If AP never shows prompt (timeout), it returns failed."""
         session = MagicMock()
         ap = make_ap("AP-TEST", "10.0.0.1", 5)
         config = make_config()
 
-        session.wait_for_prompt.return_value = "Info: The connection was closed by the remote host."
+        session.wait_for_prompt.side_effect = TimeoutError("timed out waiting for AP prompt")
 
-        with patch("crawler._drain_buffer"):
+        with patch("crawler.exit_ap_session"), patch("crawler._drain_buffer"):
             results = crawl_single_ap(session, ap, {}, config)
         assert len(results) == 1
         assert results[0].status == "failed"
-        assert "closed by remote" in results[0].error.lower()
+        assert "Timeout" in results[0].error
 
     def test_timeout_returns_failed(self):
         session = MagicMock()
