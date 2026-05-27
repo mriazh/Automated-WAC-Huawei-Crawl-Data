@@ -5,6 +5,8 @@ maps results to switch IPs via the switch dictionary.
 """
 
 import logging
+import re
+import time
 from dataclasses import dataclass
 
 from config import Config
@@ -128,19 +130,43 @@ def crawl_single_ap(
         session.channel.send(f"stelnet ap ap-id {ap.ap_id}\n")
 
         # Use auto_respond to handle Y/N prompts dynamically.
-        # This handles both cases:
-        # - 2 prompts (first connection): Continue→Y, Save key→N, then AP prompt
-        # - 1 prompt (subsequent connections): Continue→Y, then AP prompt directly
+        # Handles all known prompt variations:
+        # - "Continue to access it?" → Y (always)
+        # - "Save the server's public key?" → Y (first time, key not cached)
+        # - "Update the server's public key now?" → Y (key changed)
+        # Answering Y to save/update prevents "connection closed by remote"
         auto_respond_map = {
             r"Continue to access it\?": "Y",
-            r"Save the server's public key\?": "N",
+            r"Save the server's public key\?": "Y",
+            r"Update the server's public key": "Y",
         }
 
-        session.wait_for_prompt(
-            patterns=[AP_PROMPT],
+        # Also detect if connection was closed by remote (AP unreachable)
+        output = session.wait_for_prompt(
+            patterns=[AP_PROMPT, r"connection was closed"],
             timeout=config.ap_connect_timeout,
             auto_respond=auto_respond_map,
         )
+
+        # Check if connection was closed instead of getting AP prompt
+        if re.search(r"connection was closed", output, re.IGNORECASE):
+            logger.warning("AP '%s' (ID: %d): connection closed by remote host", ap.name, ap.ap_id)
+            # Drain any remaining output and wait for WAC prompt to recover
+            try:
+                session.wait_for_prompt(
+                    patterns=[WAC_SYSTEM_PROMPT],
+                    timeout=5,
+                )
+            except TimeoutError:
+                pass
+            return CrawlResult(
+                ap_name=ap.name,
+                ap_ip=ap.ip,
+                switch_name="N/A",
+                switch_ip="N/A",
+                status="failed",
+                error="Connection closed by remote host",
+            )
 
         # Step 4: Send LLDP command and wait for output
         lldp_output = session.send_command(
@@ -178,6 +204,9 @@ def crawl_single_ap(
         except Exception:
             pass
 
+        # Drain any leftover data in the buffer to prevent state corruption
+        _drain_buffer(session)
+
         error_msg = f"Timeout: {e}"
         logger.warning("AP '%s' (ID: %d) crawl failed: %s", ap.name, ap.ap_id, error_msg)
 
@@ -189,6 +218,16 @@ def crawl_single_ap(
             status="failed",
             error=error_msg,
         )
+
+
+def _drain_buffer(session: SSHSession) -> None:
+    """Drain any leftover data from the SSH channel buffer."""
+    time.sleep(0.5)
+    try:
+        while session.channel and session.channel.recv_ready():
+            session.channel.recv(65535)
+    except Exception:
+        pass
 
 
 def exit_ap_session(session: SSHSession) -> bool:

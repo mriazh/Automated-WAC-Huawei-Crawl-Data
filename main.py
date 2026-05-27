@@ -14,9 +14,9 @@ from output import print_summary, write_csv
 from parsers import parse_ap_list, parse_switch_list
 from ssh_client import SSHSession
 
-# Log file: detailed logs with timestamps
-log_filename = f"crawl_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-file_handler = logging.FileHandler(log_filename, encoding="utf-8")
+# Log file: single file, append mode with session separators
+log_filename = "crawl.log"
+file_handler = logging.FileHandler(log_filename, mode="a", encoding="utf-8")
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(logging.Formatter(
     "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -28,6 +28,12 @@ console_handler.setLevel(logging.ERROR)
 console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
 
 logging.basicConfig(level=logging.DEBUG, handlers=[file_handler, console_handler])
+
+# Write session start marker
+_logger = logging.getLogger(__name__)
+_logger.info("=" * 60)
+_logger.info("SESSION START — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+_logger.info("=" * 60)
 
 
 def main() -> None:
@@ -69,6 +75,8 @@ def main() -> None:
     finally:
         if session:
             session.disconnect()
+        _logger.info("SESSION END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        _logger.info("-" * 60)
 
 
 if __name__ == "__main__":

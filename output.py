@@ -1,20 +1,19 @@
 """CSV output writer and summary display for WAC Huawei LLDP Crawl Data tool.
 
-Generates timestamped CSV files mapping AP-to-Switch connectivity
+Generates a single CSV file mapping AP-to-Switch connectivity
 and displays crawl execution statistics.
 """
 
 import csv
 import os
-from datetime import datetime
 
 from crawler import CrawlResult
 
 
 def write_csv(results: list[CrawlResult], output_dir: str = ".") -> str:
-    """Write results to CSV file with timestamp filename.
+    """Write results to CSV file (overwrites previous result).
 
-    Filename: lldp_result_YYYYMMDD_HHMMSS.csv
+    Filename: lldp_result.csv
     Header: AP,Switch
     Row format: "AP_Name (AP_IP)","Switch_Name (Switch_IP)"
 
@@ -22,8 +21,7 @@ def write_csv(results: list[CrawlResult], output_dir: str = ".") -> str:
     Generates header-only file if no successful results.
     Returns the output filepath.
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"lldp_result_{timestamp}.csv"
+    filename = "lldp_result.csv"
     filepath = os.path.join(output_dir, filename)
 
     try:
