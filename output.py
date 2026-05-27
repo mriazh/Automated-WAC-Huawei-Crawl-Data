@@ -6,42 +6,90 @@ and displays crawl execution statistics.
 
 import csv
 import os
+import re
 
 from crawler import CrawlResult
 
+CSV_FILENAME = "lldp_result.csv"
 
-def write_csv(results: list[CrawlResult], output_dir: str = ".") -> str:
-    """Write results to CSV file (overwrites previous result).
+
+def read_existing_csv(output_dir: str = ".") -> set[str]:
+    """Read existing CSV and return set of AP names already crawled.
+
+    Used for resume mode — skip APs that already have results.
+    Returns empty set if file doesn't exist or is empty.
+    """
+    filepath = os.path.join(output_dir, CSV_FILENAME)
+    done = set()
+
+    if not os.path.exists(filepath):
+        return done
+
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            next(reader, None)  # skip header
+            for row in reader:
+                if row:
+                    # Extract AP name from "AP_Name (AP_IP)" format
+                    match = re.match(r"^(.+?)\s*\(", row[0])
+                    if match:
+                        done.add(match.group(1))
+    except Exception:
+        pass
+
+    return done
+
+
+def write_csv(results: list[CrawlResult], output_dir: str = ".",
+              append_to_existing: bool = False) -> str:
+    """Write results to CSV file.
+
+    If append_to_existing=True, appends new successful results to existing file.
+    Otherwise overwrites the file.
 
     Filename: lldp_result.csv
     Header: AP,Switch
     Row format: "AP_Name (AP_IP)","Switch_Name (Switch_IP)"
 
     Only includes results with status 'success'.
-    Generates header-only file if no successful results.
     Returns the output filepath.
     """
-    filename = "lldp_result.csv"
-    filepath = os.path.join(output_dir, filename)
+    filepath = os.path.join(output_dir, CSV_FILENAME)
 
-    try:
-        with open(filepath, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(["AP", "Switch"])
-
-            for result in results:
-                if result.status == "success":
-                    ap_col = f"{result.ap_name} ({result.ap_ip})"
-                    switch_col = f"{result.switch_name} ({result.switch_ip})"
-                    writer.writerow([ap_col, switch_col])
-    except OSError as e:
-        print(f"Error: Failed to write output file '{filepath}': {e}")
-        raise
+    if append_to_existing and os.path.exists(filepath):
+        # Append mode: add new results to existing file
+        try:
+            with open(filepath, "a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                for result in results:
+                    if result.status == "success":
+                        ap_col = f"{result.ap_name} ({result.ap_ip})"
+                        switch_col = f"{result.switch_name} ({result.switch_ip})"
+                        writer.writerow([ap_col, switch_col])
+        except OSError as e:
+            print(f"Error: Failed to append to output file '{filepath}': {e}")
+            raise
+    else:
+        # Overwrite mode: write fresh file
+        try:
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                writer.writerow(["AP", "Switch"])
+                for result in results:
+                    if result.status == "success":
+                        ap_col = f"{result.ap_name} ({result.ap_ip})"
+                        switch_col = f"{result.switch_name} ({result.switch_ip})"
+                        writer.writerow([ap_col, switch_col])
+        except OSError as e:
+            print(f"Error: Failed to write output file '{filepath}': {e}")
+            raise
 
     return filepath
 
 
-def print_summary(results: list[CrawlResult], filepath: str) -> None:
+def print_summary(results: list[CrawlResult], filepath: str,
+                  resumed_count: int = 0) -> None:
     """Print crawl summary statistics to stdout.
 
     Shows: total, skipped, successful, failed counts.
@@ -53,8 +101,12 @@ def print_summary(results: list[CrawlResult], filepath: str) -> None:
     failed = sum(1 for r in results if r.status == "failed")
 
     print("\n--- Crawl Summary ---")
-    print(f"Total APs: {total}")
+    if resumed_count > 0:
+        print(f"Previously completed: {resumed_count}")
+    print(f"Total APs processed this run: {total}")
     print(f"Skipped (offline): {skipped}")
     print(f"Successful: {successful}")
     print(f"Failed: {failed}")
+    if resumed_count > 0:
+        print(f"Total in CSV: {resumed_count + successful}")
     print(f"Output file: {filepath}")

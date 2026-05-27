@@ -112,19 +112,19 @@ def parse_switch_list(filepath: str = "list_switch.txt") -> dict[str, str]:
     return switch_dict
 
 
-def parse_lldp_output(output: str, ap_name: str = "") -> str:
-    """Extract first Neighbor Dev value from LLDP command output.
+def parse_lldp_output(output: str, ap_name: str = "") -> list[str]:
+    """Extract ALL Neighbor Dev values from LLDP command output.
 
     Algorithm:
     1. Find header line containing "Neighbor Dev"
     2. Determine column boundaries from header character positions
-    3. Extract value from first data row below header
+    3. Extract values from ALL data rows below header
 
-    Returns empty string if no valid data found.
+    Returns list of neighbor device names. Empty list if no valid data found.
     Logs warning if header format is unrecognizable.
     """
     if not output or not output.strip():
-        return ""
+        return []
 
     lines = output.splitlines()
 
@@ -140,7 +140,7 @@ def parse_lldp_output(output: str, ap_name: str = "") -> str:
             "LLDP output for AP '%s' does not contain expected header columns",
             ap_name,
         )
-        return ""
+        return []
 
     header_line = lines[header_idx]
 
@@ -150,13 +150,14 @@ def parse_lldp_output(output: str, ap_name: str = "") -> str:
             "LLDP output for AP '%s' has unrecognizable header format",
             ap_name,
         )
-        return ""
+        return []
 
     # Determine column boundaries from header character positions
     col_start = header_line.index("Neighbor Dev")
     col_end = header_line.index("Neighbor Intf")
 
-    # Find first data row after header (skip empty lines)
+    # Extract ALL data rows after header
+    neighbors = []
     data_lines = lines[header_idx + 1:]
     for data_line in data_lines:
         stripped = data_line.strip()
@@ -169,12 +170,8 @@ def parse_lldp_output(output: str, ap_name: str = "") -> str:
         # Extract the Neighbor Dev value using column boundaries
         if len(data_line) > col_start:
             raw_slice = data_line[col_start:col_end] if len(data_line) >= col_end else data_line[col_start:]
-            # Strip trailing whitespace only. Column boundaries from the header
-            # are authoritative — do NOT split on spaces, as switch names can
-            # contain spaces (e.g., "CORE DISTRI HG4").
             value = raw_slice.rstrip()
-            return value
-        return ""
+            if value:
+                neighbors.append(value)
 
-    # No valid data rows found
-    return ""
+    return neighbors
