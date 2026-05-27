@@ -169,14 +169,24 @@ class SSHSession:
         )
 
     def disconnect(self) -> None:
-        """Close SSH channel and transport gracefully.
+        """Close SSH session gracefully — send quit commands to WAC first.
 
-        Logs warning if already disconnected. Handles exceptions
-        during cleanup to ensure best-effort resource release.
+        Sends 'quit' to properly release the WAC session before closing
+        the SSH transport. This prevents WAC from holding stale sessions.
         """
         if self.channel is None and self.client is None:
             logger.warning("SSH connection already closed")
             return
+
+        # Try to send quit commands to WAC before closing transport
+        try:
+            if self.channel is not None and not self.channel.closed:
+                self.channel.send("quit\n")
+                time.sleep(0.3)
+                self.channel.send("quit\n")
+                time.sleep(0.3)
+        except Exception:
+            pass  # Best effort — channel might already be dead
 
         try:
             if self.channel is not None:
