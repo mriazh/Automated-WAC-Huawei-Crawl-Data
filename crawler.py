@@ -34,47 +34,66 @@ def crawl_all_aps(
 ) -> list[CrawlResult]:
     """Iterate through all APs, crawl LLDP data, return results.
 
-    Prints progress to stdout for each AP.
+    Prints clean progress to stdout. Logs details to file.
     Skips offline APs. Handles connection failures gracefully.
+    Returns partial results on KeyboardInterrupt.
     """
     results: list[CrawlResult] = []
     total = len(ap_list)
 
-    for n, ap in enumerate(ap_list, start=1):
-        print(f"Processing AP {n}/{total}: {ap.name}")
+    try:
+        for n, ap in enumerate(ap_list, start=1):
+            # Clean console: single line progress
+            print(f"[{n}/{total}] {ap.name}", end="")
+            logger.info("Processing AP %d/%d: %s (ID: %d, IP: %s)", n, total, ap.name, ap.ap_id, ap.ip)
 
-        # Skip offline APs
-        if ap.is_offline:
-            print(f"  Skipped: {ap.name} (no IP assigned)")
-            results.append(
-                CrawlResult(
-                    ap_name=ap.name,
-                    ap_ip=ap.ip,
-                    switch_name="N/A",
-                    switch_ip="N/A",
-                    status="skipped",
+            # Skip offline APs
+            if ap.is_offline:
+                print(" - SKIP (offline)")
+                logger.info("Skipped AP '%s' — no IP assigned", ap.name)
+                results.append(
+                    CrawlResult(
+                        ap_name=ap.name,
+                        ap_ip=ap.ip,
+                        switch_name="N/A",
+                        switch_ip="N/A",
+                        status="skipped",
+                    )
                 )
-            )
-            continue
+                continue
 
-        # Crawl online AP
-        try:
-            result = crawl_single_ap(session, ap, switch_dict, config)
-            results.append(result)
-        except Exception as e:
-            error_msg = str(e)
-            print(f"  Warning: Failed to crawl {ap.name} (ID: {ap.ap_id}) - {error_msg}")
-            logger.warning("Failed to crawl AP '%s' (ID: %d): %s", ap.name, ap.ap_id, error_msg)
-            results.append(
-                CrawlResult(
-                    ap_name=ap.name,
-                    ap_ip=ap.ip,
-                    switch_name="N/A",
-                    switch_ip="N/A",
-                    status="failed",
-                    error=error_msg,
-                )
+            # Crawl online AP
+            try:
+                result = crawl_single_ap(session, ap, switch_dict, config)
+                if result.status == "success":
+                    print(f" -> {result.switch_name}")
+                    logger.info("Success: %s -> %s (%s)", ap.name, result.switch_name, result.switch_ip)
+                else:
+                    print(f" - FAILED: {result.error}")
+                    logger.warning("Failed: %s — %s", ap.name, result.error)
+                results.append(result)
+            except KeyboardInterrupt:
+                print(" - INTERRUPTED")
+                raise
+            except Exception as e:
+                error_msg = str(e)
+                print(f" - FAILED: {error_msg}")
+                logger.error("Exception crawling AP '%s' (ID: %d): %s", ap.name, ap.ap_id, error_msg)
+                results.append(
+                    CrawlResult(
+                        ap_name=ap.name,
+                        ap_ip=ap.ip,
+                        switch_name="N/A",
+                        switch_ip="N/A",
+                        status="failed",
+                        error=error_msg,
+                    )
             )
+    except KeyboardInterrupt:
+        print(" - INTERRUPTED")
+        logger.info("Crawl interrupted by user at AP %d/%d", len(results) + 1, total)
+
+    return results
 
     return results
 
@@ -160,7 +179,6 @@ def crawl_single_ap(
             pass
 
         error_msg = f"Timeout: {e}"
-        print(f"  Warning: {ap.name} (ID: {ap.ap_id}) - {error_msg}")
         logger.warning("AP '%s' (ID: %d) crawl failed: %s", ap.name, ap.ap_id, error_msg)
 
         return CrawlResult(

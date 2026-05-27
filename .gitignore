@@ -2,6 +2,7 @@
 __pycache__/
 *.csv
 *.pyc
+*.log
 venv/
 list_ap.txt
 list_switch.txt

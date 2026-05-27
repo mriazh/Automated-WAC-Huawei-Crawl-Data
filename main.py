@@ -5,6 +5,8 @@ SSH connection, AP crawling, CSV output, and summary display.
 """
 
 import logging
+import sys
+from datetime import datetime
 
 from config import load_config
 from crawler import crawl_all_aps
@@ -12,8 +14,20 @@ from output import print_summary, write_csv
 from parsers import parse_ap_list, parse_switch_list
 from ssh_client import SSHSession
 
-# Configure logging to show warnings on stderr
-logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+# Log file: detailed logs with timestamps
+log_filename = f"crawl_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+file_handler = logging.FileHandler(log_filename, encoding="utf-8")
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+))
+
+# Console: clean, minimal output (only errors)
+console_handler = logging.StreamHandler(sys.stderr)
+console_handler.setLevel(logging.ERROR)
+console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+
+logging.basicConfig(level=logging.DEBUG, handlers=[file_handler, console_handler])
 
 
 def main() -> None:
@@ -32,6 +46,7 @@ def main() -> None:
     Wrapped in try/finally for guaranteed SSH cleanup.
     """
     session = None
+    results = []
     try:
         config = load_config()
         ap_list = parse_ap_list()
@@ -44,6 +59,13 @@ def main() -> None:
         results = crawl_all_aps(session, ap_list, switch_dict, config)
         filepath = write_csv(results)
         print_summary(results, filepath)
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user (Ctrl+C). Saving partial results...")
+        if results:
+            filepath = write_csv(results)
+            print_summary(results, filepath)
+        else:
+            print("No results to save.")
     finally:
         if session:
             session.disconnect()
