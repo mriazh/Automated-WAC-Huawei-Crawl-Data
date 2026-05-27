@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.csv
+*.pyc
+venv/
+list_ap.txt
+list_switch.txt
+.kiro
