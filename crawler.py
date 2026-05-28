@@ -261,14 +261,38 @@ def crawl_single_ap(
             r"Update the server's public key": "Y",
         }
 
-        # Wait for AP prompt only. Don't match "connection was closed" as it
-        # can be leftover from the previous AP's quit sequence.
-        # If connection truly fails, it will timeout.
+        # Wait for AP prompt. Also detect WAC error messages so we fail fast
+        # instead of waiting the full timeout.
+        # Error patterns return to WAC system prompt [WAC-xxx] with error text.
         output = session.wait_for_prompt(
-            patterns=[AP_PROMPT],
+            patterns=[AP_PROMPT, WAC_SYSTEM_PROMPT],
             timeout=config.ap_connect_timeout,
             auto_respond=auto_respond_map,
         )
+
+        # Check if we got a WAC system prompt instead of AP prompt
+        # This means stelnet failed (e.g., "Login failed", "Error:")
+        import re as _re
+        if _re.search(WAC_SYSTEM_PROMPT, output) and not _re.search(AP_PROMPT, output):
+            # Extract the error message from WAC output
+            error_detail = "AP unreachable via stelnet"
+            if "Login failed" in output:
+                error_detail = "Login failed (WAC cannot obtain AP info)"
+            elif "Error:" in output:
+                # Extract the Error: line
+                for line in output.splitlines():
+                    if "Error:" in line:
+                        error_detail = line.strip()
+                        break
+            elif "timed out" in output.lower() or "timeout" in output.lower():
+                error_detail = "Connection to AP timed out"
+
+            logger.warning("AP '%s' (ID: %d) stelnet rejected: %s", ap.name, ap.ap_id, error_detail)
+            return [CrawlResult(
+                ap_name=ap.name, ap_ip=ap.ip,
+                switch_name="N/A", switch_ip="N/A",
+                status="failed", error=error_detail,
+            )]
 
         # Step 4: Send LLDP command and wait for output
         lldp_output = session.send_command(
