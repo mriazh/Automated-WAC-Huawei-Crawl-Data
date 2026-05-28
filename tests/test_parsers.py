@@ -61,6 +61,18 @@ class TestParseApList:
         assert len(result) == 1
         assert result[0].name == "AP-GOOD"
 
+    def test_all_offline_entries(self, tmp_path):
+        """All APs are offline (ip == '--') — still valid entries."""
+        f = tmp_path / "list_ap.txt"
+        f.write_text("AP-OFF-01\t--\t10\nAP-OFF-02\t--\t11\nAP-OFF-03\t--\t12\n")
+        result = parse_ap_list(str(f))
+        assert len(result) == 3
+        assert all(entry.is_offline for entry in result)
+        assert all(entry.ip == "--" for entry in result)
+        assert result[0].name == "AP-OFF-01"
+        assert result[1].ap_id == 11
+        assert result[2].name == "AP-OFF-03"
+
 
 # ============================================================
 # parse_switch_list tests

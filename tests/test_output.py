@@ -30,6 +30,25 @@ class TestWriteCsv:
         assert rows[1] == ["AP-1 (10.0.0.1)", "SW-1 (10.0.1.1)"]
         assert rows[2] == ["AP-2 (10.0.0.2)", "SW-2 (10.0.1.2)"]
 
+    def test_mixed_results_only_writes_success(self, tmp_path):
+        """write_csv with mixed results: only success rows appear in CSV."""
+        results = [
+            CrawlResult("AP-OK", "10.0.0.1", "SW-1", "10.0.1.1", "success"),
+            CrawlResult("AP-SKIP", "--", "N/A", "N/A", "skipped"),
+            CrawlResult("AP-FAIL", "10.0.0.3", "N/A", "N/A", "failed", "timeout"),
+            CrawlResult("AP-OK2", "10.0.0.4", "SW-2", "10.0.1.2", "success"),
+        ]
+        filepath = write_csv(results, output_dir=str(tmp_path))
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+        # Header + 2 success rows only
+        assert len(rows) == 3
+        assert rows[0] == ["AP", "Switch"]
+        assert rows[1] == ["AP-OK (10.0.0.1)", "SW-1 (10.0.1.1)"]
+        assert rows[2] == ["AP-OK2 (10.0.0.4)", "SW-2 (10.0.1.2)"]
+
     def test_skips_failed_and_skipped(self, tmp_path):
         results = [
             CrawlResult("AP-OK", "10.0.0.1", "SW-1", "10.0.1.1", "success"),
@@ -43,7 +62,22 @@ class TestWriteCsv:
             rows = list(reader)
         assert len(rows) == 2  # header + 1 success
 
+    def test_zero_successful_results_header_only(self, tmp_path):
+        """write_csv with zero successful results generates header-only CSV."""
+        results = [
+            CrawlResult("AP-FAIL", "10.0.0.1", "N/A", "N/A", "failed", "timeout"),
+            CrawlResult("AP-SKIP", "--", "N/A", "N/A", "skipped"),
+        ]
+        filepath = write_csv(results, output_dir=str(tmp_path))
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+        assert len(rows) == 1
+        assert rows[0] == ["AP", "Switch"]
+
     def test_empty_results_header_only(self, tmp_path):
+        """write_csv with empty list generates header-only CSV."""
         results = []
         filepath = write_csv(results, output_dir=str(tmp_path))
 
@@ -52,6 +86,13 @@ class TestWriteCsv:
             rows = list(reader)
         assert len(rows) == 1
         assert rows[0] == ["AP", "Switch"]
+
+    def test_csv_filename_matches_expected_pattern(self, tmp_path):
+        """CSV filename is lldp_result.csv (static name, overwrite mode)."""
+        results = [CrawlResult("AP-1", "10.0.0.1", "SW-1", "10.0.1.1", "success")]
+        filepath = write_csv(results, output_dir=str(tmp_path))
+        assert os.path.basename(filepath) == "lldp_result.csv"
+        assert filepath == os.path.join(str(tmp_path), CSV_FILENAME)
 
     def test_append_mode(self, tmp_path):
         # Write initial results
@@ -125,6 +166,33 @@ class TestPrintSummary:
         assert "Skipped (offline): 1" in output
         assert "Failed: 1" in output
 
+    def test_summary_shows_output_filepath(self, capsys):
+        """print_summary displays the output file path."""
+        results = [
+            CrawlResult("AP-1", "10.0.0.1", "SW-1", "10.0.1.1", "success"),
+        ]
+        filepath = "/some/path/lldp_result.csv"
+        print_summary(results, filepath)
+        output = capsys.readouterr().out
+        assert f"Output file: {filepath}" in output
+
+    def test_summary_with_all_statuses(self, capsys):
+        """print_summary correctly counts mixed statuses."""
+        results = [
+            CrawlResult("AP-1", "10.0.0.1", "SW-1", "10.0.1.1", "success"),
+            CrawlResult("AP-2", "10.0.0.2", "SW-2", "10.0.1.2", "success"),
+            CrawlResult("AP-3", "--", "N/A", "N/A", "skipped"),
+            CrawlResult("AP-4", "--", "N/A", "N/A", "skipped"),
+            CrawlResult("AP-5", "--", "N/A", "N/A", "skipped"),
+            CrawlResult("AP-6", "10.0.0.6", "N/A", "N/A", "failed", "timeout"),
+        ]
+        print_summary(results, "lldp_result.csv")
+        output = capsys.readouterr().out
+        assert "Total APs processed this run: 6" in output
+        assert "Successful: 2" in output
+        assert "Skipped (offline): 3" in output
+        assert "Failed: 1" in output
+
     def test_resume_summary(self, capsys):
         results = [
             CrawlResult("AP-1", "10.0.0.1", "SW-1", "10.0.1.1", "success"),
@@ -133,3 +201,10 @@ class TestPrintSummary:
         output = capsys.readouterr().out
         assert "Previously completed: 149" in output
         assert "Total in CSV: 150" in output
+
+    def test_summary_header_present(self, capsys):
+        """print_summary includes the summary header line."""
+        results = []
+        print_summary(results, "lldp_result.csv")
+        output = capsys.readouterr().out
+        assert "--- Crawl Summary ---" in output
