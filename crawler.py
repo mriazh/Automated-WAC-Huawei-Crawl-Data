@@ -8,6 +8,8 @@ import logging
 import time
 from dataclasses import dataclass
 
+from tqdm import tqdm
+
 from config import Config
 from parsers import APEntry, parse_lldp_output
 from ssh_client import SSHSession, WAC_SYSTEM_PROMPT, AP_PROMPT
@@ -15,6 +17,14 @@ from ssh_client import SSHSession, WAC_SYSTEM_PROMPT, AP_PROMPT
 logger = logging.getLogger(__name__)
 
 MAX_RECONNECT_ATTEMPTS = 3
+
+# ANSI codes for tqdm.write
+ANSI_GREEN = "\033[92m"
+ANSI_RED = "\033[91m"
+ANSI_YELLOW = "\033[93m"
+ANSI_CYAN = "\033[96m"
+ANSI_DIM = "\033[2m"
+ANSI_RESET = "\033[0m"
 
 
 @dataclass
@@ -38,7 +48,7 @@ def crawl_all_aps(
 ) -> list[CrawlResult]:
     """Iterate through all APs, crawl LLDP data, return results.
 
-    Prints clean progress to stdout. Logs details to file.
+    Uses tqdm progress bar with colorful status output.
     Skips offline APs and already-completed APs (resume mode).
     Auto-reconnects SSH if connection drops.
     Returns partial results on KeyboardInterrupt.
@@ -48,6 +58,18 @@ def crawl_all_aps(
     if already_done is None:
         already_done = set()
 
+    # Count APs to actually process (exclude already done)
+    to_process = [ap for ap in ap_list if ap.name not in already_done]
+    success_count = 0
+    fail_count = 0
+
+    pbar = tqdm(
+        total=len(to_process),
+        bar_format="{desc} {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+        ncols=90,
+    )
+    pbar.set_description(f"Crawling: {ANSI_GREEN}✅ 0{ANSI_RESET} | {ANSI_RED}❌ 0{ANSI_RESET}")
+
     try:
         for n, ap in enumerate(ap_list, start=1):
             # Skip already-completed APs (resume mode)
@@ -55,13 +77,11 @@ def crawl_all_aps(
                 logger.info("Skipped AP '%s' — already in CSV (resume mode)", ap.name)
                 continue
 
-            # Clean console: single line progress
-            print(f"[{n}/{total}] {ap.name}", end="")
             logger.info("Processing AP %d/%d: %s (ID: %d, IP: %s)", n, total, ap.name, ap.ap_id, ap.ip)
 
             # Skip offline APs
             if ap.is_offline:
-                print(" - SKIP (offline)")
+                pbar.write(f"  {ANSI_YELLOW}⏭️{ANSI_RESET}  [{n}/{total}] {ap.name} {ANSI_DIM}— offline, skipped{ANSI_RESET}")
                 logger.info("Skipped AP '%s' — no IP assigned", ap.name)
                 results.append(
                     CrawlResult(
@@ -72,55 +92,62 @@ def crawl_all_aps(
                         status="skipped",
                     )
                 )
+                pbar.update(1)
                 continue
 
             # Crawl online AP
             try:
                 ap_results = crawl_single_ap(session, ap, switch_dict, config)
                 success_names = [r.switch_name for r in ap_results if r.status == "success"]
-                failed_results = [r for r in ap_results if r.status == "failed"]
+                failed_results_ap = [r for r in ap_results if r.status == "failed"]
 
                 if success_names:
-                    print(f" -> {', '.join(success_names)}")
+                    neighbors_str = ", ".join(success_names)
+                    pbar.write(f"  {ANSI_GREEN}✅{ANSI_RESET} [{n}/{total}] {ap.name} → {ANSI_CYAN}{neighbors_str}{ANSI_RESET}")
                     for r in ap_results:
                         if r.status == "success":
                             logger.info("Success: %s -> %s (%s)", ap.name, r.switch_name, r.switch_ip)
-                elif failed_results:
-                    print(f" - FAILED: {failed_results[0].error}")
-                    for r in failed_results:
+                    success_count += 1
+                elif failed_results_ap:
+                    err_short = failed_results_ap[0].error[:50]
+                    pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_DIM}— {err_short}{ANSI_RESET}")
+                    for r in failed_results_ap:
                         logger.warning("Failed: %s — %s", ap.name, r.error)
+                    fail_count += 1
 
                 results.extend(ap_results)
             except KeyboardInterrupt:
-                print(" - INTERRUPTED")
                 raise
             except Exception as e:
                 error_msg = str(e)
 
                 # Detect socket closed → attempt reconnect
                 if "socket is closed" in error_msg.lower() or "socket exception" in error_msg.lower():
-                    print(f" - CONNECTION LOST")
+                    pbar.write(f"  {ANSI_YELLOW}⚡{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_YELLOW}— CONNECTION LOST{ANSI_RESET}")
                     logger.error("SSH connection lost at AP '%s' (ID: %d): %s", ap.name, ap.ap_id, error_msg)
 
                     # Attempt reconnect
-                    reconnected = _reconnect(session, config)
+                    reconnected = _reconnect(session, config, pbar)
                     if reconnected:
                         # Retry this AP after reconnect
-                        print(f"[{n}/{total}] {ap.name} (retry)", end="")
                         try:
                             ap_results = crawl_single_ap(session, ap, switch_dict, config)
                             success_names = [r.switch_name for r in ap_results if r.status == "success"]
                             if success_names:
-                                print(f" -> {', '.join(success_names)}")
+                                neighbors_str = ", ".join(success_names)
+                                pbar.write(f"  {ANSI_GREEN}✅{ANSI_RESET} [{n}/{total}] {ap.name} (retry) → {ANSI_CYAN}{neighbors_str}{ANSI_RESET}")
                                 for r in ap_results:
                                     if r.status == "success":
                                         logger.info("Success (after reconnect): %s -> %s (%s)", ap.name, r.switch_name, r.switch_ip)
+                                success_count += 1
                             else:
-                                print(f" - FAILED")
+                                pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} (retry) {ANSI_DIM}— failed{ANSI_RESET}")
+                                fail_count += 1
                             results.extend(ap_results)
                         except Exception as retry_e:
-                            print(f" - FAILED: {retry_e}")
+                            pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} (retry) {ANSI_DIM}— {retry_e}{ANSI_RESET}")
                             logger.error("Retry failed for AP '%s': %s", ap.name, retry_e)
+                            fail_count += 1
                             results.append(
                                 CrawlResult(
                                     ap_name=ap.name, ap_ip=ap.ip,
@@ -130,8 +157,9 @@ def crawl_all_aps(
                             )
                     else:
                         # Reconnect failed — stop crawling
-                        print("\nFailed to reconnect SSH. Stopping crawl.")
+                        pbar.write(f"\n  {ANSI_RED}💀 Failed to reconnect SSH. Stopping crawl.{ANSI_RESET}")
                         logger.error("SSH reconnect failed. Stopping crawl at AP %d/%d", n, total)
+                        fail_count += 1
                         results.append(
                             CrawlResult(
                                 ap_name=ap.name, ap_ip=ap.ip,
@@ -141,8 +169,10 @@ def crawl_all_aps(
                         )
                         break
                 else:
-                    print(f" - FAILED: {error_msg}")
+                    err_short = error_msg[:50]
+                    pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_DIM}— {err_short}{ANSI_RESET}")
                     logger.error("Exception crawling AP '%s' (ID: %d): %s", ap.name, ap.ap_id, error_msg)
+                    fail_count += 1
                     results.append(
                         CrawlResult(
                             ap_name=ap.name, ap_ip=ap.ip,
@@ -150,20 +180,29 @@ def crawl_all_aps(
                             status="failed", error=error_msg,
                         )
                     )
+
+            # Update progress bar description with live counts
+            pbar.set_description(f"Crawling: {ANSI_GREEN}✅ {success_count}{ANSI_RESET} | {ANSI_RED}❌ {fail_count}{ANSI_RESET}")
+            pbar.update(1)
+
     except KeyboardInterrupt:
-        print(" - INTERRUPTED")
+        pbar.write(f"\n  {ANSI_YELLOW}⚠️  Crawl interrupted by user (Ctrl+C){ANSI_RESET}")
         logger.info("Crawl interrupted by user at AP %d/%d", len(results) + 1, total)
+    finally:
+        pbar.close()
 
     return results
 
 
-def _reconnect(session: SSHSession, config: Config) -> bool:
+def _reconnect(session: SSHSession, config: Config, pbar=None) -> bool:
     """Attempt to reconnect SSH session to WAC.
 
     Returns True if reconnect successful, False otherwise.
     """
     for attempt in range(1, MAX_RECONNECT_ATTEMPTS + 1):
-        print(f"\n  Reconnecting SSH (attempt {attempt}/{MAX_RECONNECT_ATTEMPTS})...", end="")
+        msg = f"  {ANSI_YELLOW}🔄 Reconnecting SSH (attempt {attempt}/{MAX_RECONNECT_ATTEMPTS})...{ANSI_RESET}"
+        if pbar:
+            pbar.write(msg)
         logger.info("SSH reconnect attempt %d/%d", attempt, MAX_RECONNECT_ATTEMPTS)
 
         try:
@@ -179,11 +218,13 @@ def _reconnect(session: SSHSession, config: Config) -> bool:
             # Reconnect
             session.connect()
             session.enter_system_view()
-            print(" OK")
+            if pbar:
+                pbar.write(f"  {ANSI_GREEN}✅ Reconnected successfully{ANSI_RESET}")
             logger.info("SSH reconnect successful")
             return True
         except Exception as e:
-            print(f" FAILED ({e})")
+            if pbar:
+                pbar.write(f"  {ANSI_RED}❌ Attempt {attempt} failed: {e}{ANSI_RESET}")
             logger.error("SSH reconnect attempt %d failed: %s", attempt, e)
             time.sleep(5)
 
