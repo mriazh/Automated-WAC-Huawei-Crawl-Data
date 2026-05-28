@@ -208,7 +208,7 @@ Set these in `.env`. Increase `AP_CONNECT_TIMEOUT` if you have APs behind NAT (t
 ├── list_ap-example.txt  # AP list template
 ├── list_switch-example.txt  # Switch list template
 ├── requirements.txt     # Python dependencies
-├── tests/               # Unit tests (55 tests)
+├── tests/               # Unit & property-based tests (122 tests)
 └── .gitignore           # Exclude sensitive files
 ```
 
@@ -229,10 +229,57 @@ Set these in `.env`. Increase `AP_CONNECT_TIMEOUT` if you have APs behind NAT (t
 - The tool only runs **read-only** commands (`display`) — no WAC/AP configuration is modified
 - SSH host keys are auto-accepted (standard for internal network automation)
 
-## Running Tests
+## Development
+
+### Running Tests
+
+Run the full test suite:
 
 ```bash
-python -m pytest tests/ -v
+pytest tests/ -v
+```
+
+Run only unit tests (fast, no randomized inputs):
+
+```bash
+pytest tests/test_config.py tests/test_parsers.py tests/test_crawler.py tests/test_output.py tests/test_ssh_client.py tests/test_integration_main.py -v
+```
+
+Run only property-based tests (uses [Hypothesis](https://hypothesis.readthedocs.io/) to generate random inputs):
+
+```bash
+pytest tests/test_property_*.py -v
+```
+
+Run a specific test file:
+
+```bash
+pytest tests/test_parsers.py -v
+```
+
+### Test Structure
+
+| File | What it tests |
+|------|---------------|
+| `test_config.py` | Config loading, validation, defaults |
+| `test_parsers.py` | AP list, switch list, LLDP output parsing |
+| `test_ssh_client.py` | SSH connect/disconnect, commands, prompts (mocked) |
+| `test_crawler.py` | Crawl logic, reconnect, exit session (mocked) |
+| `test_output.py` | CSV write/read, summary output |
+| `test_integration_main.py` | Full main() flow with mocked SSH |
+| `test_property_completeness.py` | Every AP produces exactly one result |
+| `test_property_exact_matching.py` | Switch lookup is case-sensitive, no fuzzy match |
+| `test_property_no_data_loss.py` | All successful results end up in CSV |
+| `test_property_order_preservation.py` | CSV row order matches input order |
+| `test_property_session_safety.py` | SSH disconnect is always called |
+
+### Dev Dependencies
+
+These are already in `requirements.txt`:
+
+```
+pytest >= 7.0.0
+hypothesis >= 6.0.0
 ```
 
 ## Requirements
