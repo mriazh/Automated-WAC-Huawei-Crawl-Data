@@ -194,12 +194,12 @@ class TestCrawlSingleAp:
 class TestExitApSession:
     def test_quit_succeeds(self):
         session = MagicMock()
-        session.send_command.return_value = "[WAC-1-GMF]"
+        session.send_command.return_value = "[WAC-CONTROLLER]"
         assert exit_ap_session(session) is True
 
     def test_quit_fails_return_succeeds(self):
         session = MagicMock()
-        session.send_command.side_effect = [TimeoutError("quit timeout"), "[WAC-1-GMF]"]
+        session.send_command.side_effect = [TimeoutError("quit timeout"), "[WAC-CONTROLLER]"]
         assert exit_ap_session(session) is True
 
     def test_both_fail(self):

@@ -17,10 +17,10 @@ CSV file (`lldp_result.csv`) with the following format:
 
 ```csv
 "AP","Switch"
-"AP-H3-L1-IN11 (10.0.1.10)","ASW02-HG3-L2RW (10.0.2.20)"
-"AP-MD-L1-IN22 (10.0.1.11)","AP-MD-L1-IN07 (N/A)"
-"AP-MD-L1-IN22 (10.0.1.11)","AP-MD-L1-IN14 (N/A)"
-"AP-MD-L1-IN22 (10.0.1.11)","ASW01-MD-L1 (10.0.2.21)"
+"AP-BLDG-A-L1-IN01 (192.0.2.10)","SW-BLDG-A-L2 (198.51.100.10)"
+"AP-BLDG-B-L1-IN22 (192.0.2.11)","AP-BLDG-B-L1-IN07 (N/A)"
+"AP-BLDG-B-L1-IN22 (192.0.2.11)","AP-BLDG-B-L1-IN14 (N/A)"
+"AP-BLDG-B-L1-IN22 (192.0.2.11)","SW-BLDG-B-L1 (198.51.100.20)"
 ```
 
 > APs with multiple LLDP neighbors will have multiple rows in the CSV (one per neighbor).
@@ -114,8 +114,8 @@ Switch-Name<TAB>IP-Address
 
 Example:
 ```
-ASW02-HG3-L2RW	10.0.2.20
-SW-MD-L1-2530	10.0.2.21
+SW-BLDG-A-L2	198.51.100.10
+SW-BLDG-B-L1	198.51.100.20
 ```
 
 > This is used to map neighbor device names to their IP addresses in the output.

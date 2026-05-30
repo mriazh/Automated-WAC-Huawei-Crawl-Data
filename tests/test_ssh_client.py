@@ -50,7 +50,7 @@ def mock_paramiko():
         mock_client.get_transport.return_value = mock_transport
         mock_transport.is_active.return_value = True
         mock_channel.recv_ready.return_value = True
-        mock_channel.recv.return_value = b"<WAC-1-GMF>"
+        mock_channel.recv.return_value = b"<WAC-CONTROLLER>"
         mock_channel.closed = False
 
         yield {
@@ -133,7 +133,7 @@ class TestConnect:
     def test_connect_drains_initial_banner(self, config, mock_paramiko):
         """connect() drains initial banner output from shell."""
         mock_paramiko["channel"].recv_ready.return_value = True
-        mock_paramiko["channel"].recv.return_value = b"Welcome to WAC\n<WAC-1-GMF>"
+        mock_paramiko["channel"].recv.return_value = b"Welcome to WAC\n<WAC-CONTROLLER>"
         session = SSHSession(config)
 
         with patch("ssh_client.time.sleep"):
@@ -243,7 +243,7 @@ class TestSendCommand:
         # Simulate channel returning output with prompt
         mock_paramiko["channel"].recv_ready.return_value = True
         mock_paramiko["channel"].recv.return_value = (
-            b"display version\nHuawei WAC\n<WAC-1-GMF>"
+            b"display version\nHuawei WAC\n<WAC-CONTROLLER>"
         )
 
         result = session.send_command("display version")
@@ -259,10 +259,10 @@ class TestSendCommand:
             session.connect()
 
         mock_paramiko["channel"].recv_ready.return_value = True
-        mock_paramiko["channel"].recv.return_value = b"output\n[WAC-1-GMF]"
+        mock_paramiko["channel"].recv.return_value = b"output\n[WAC-CONTROLLER]"
 
         result = session.send_command("some-command")
-        assert "[WAC-1-GMF]" in result
+        assert "[WAC-CONTROLLER]" in result
 
     def test_send_command_custom_patterns(self, config, mock_paramiko):
         """send_command() accepts custom expect_patterns."""
@@ -272,14 +272,14 @@ class TestSendCommand:
             session.connect()
 
         mock_paramiko["channel"].recv_ready.return_value = True
-        mock_paramiko["channel"].recv.return_value = b"output\n<AP-H3-L1-IN11>"
+        mock_paramiko["channel"].recv.return_value = b"output\n<AP-TEST-01>"
 
         result = session.send_command(
             "display lldp neighbor brief",
             timeout=5,
             expect_patterns=[AP_PROMPT],
         )
-        assert "<AP-H3-L1-IN11>" in result
+        assert "<AP-TEST-01>" in result
 
     def test_send_command_timeout(self, config, mock_paramiko):
         """send_command() raises TimeoutError when no pattern matches."""
@@ -312,12 +312,12 @@ class TestWaitForPrompt:
             session.connect()
 
         mock_paramiko["channel"].recv_ready.return_value = True
-        mock_paramiko["channel"].recv.return_value = b"Hello\n<WAC-1-GMF>"
+        mock_paramiko["channel"].recv.return_value = b"Hello\n<WAC-CONTROLLER>"
 
         result = session.wait_for_prompt(
             patterns=[WAC_USER_PROMPT], timeout=5
         )
-        assert "<WAC-1-GMF>" in result
+        assert "<WAC-CONTROLLER>" in result
 
     def test_wait_for_prompt_auto_respond_yn(self, config, mock_paramiko):
         """wait_for_prompt() auto-responds to Y/N prompts."""
@@ -329,7 +329,7 @@ class TestWaitForPrompt:
         # First recv returns Y/N prompt, second returns AP prompt
         recv_responses = [
             b"Are you sure? [Y/N]:",
-            b"\n<AP-H3-L1-IN11>",
+            b"\n<AP-TEST-01>",
         ]
         mock_paramiko["channel"].recv_ready.return_value = True
         mock_paramiko["channel"].recv.side_effect = recv_responses
@@ -344,7 +344,7 @@ class TestWaitForPrompt:
         send_calls = mock_paramiko["channel"].send.call_args_list
         yn_responses = [c for c in send_calls if c[0][0] == "Y\n"]
         assert len(yn_responses) >= 1
-        assert "<AP-H3-L1-IN11>" in result
+        assert "<AP-TEST-01>" in result
 
     def test_wait_for_prompt_multiple_auto_responds(self, config, mock_paramiko):
         """wait_for_prompt() handles multiple Y/N prompts with different responses."""
@@ -357,7 +357,7 @@ class TestWaitForPrompt:
         recv_responses = [
             b"Continue? [Y/N]:",
             b"Save config? [Y/N]:",
-            b"\n<AP-H3-L1-IN11>",
+            b"\n<AP-TEST-01>",
         ]
         mock_paramiko["channel"].recv_ready.return_value = True
         mock_paramiko["channel"].recv.side_effect = recv_responses
@@ -404,7 +404,7 @@ class TestWaitForPrompt:
             call_count[0] += 1
             if call_count[0] == 1:
                 return b"Prompt [Y/N]:"
-            return b"<WAC-1-GMF>"
+            return b"<WAC-CONTROLLER>"
 
         mock_paramiko["channel"].recv_ready.return_value = True
         mock_paramiko["channel"].recv.side_effect = recv_side_effect
@@ -414,7 +414,7 @@ class TestWaitForPrompt:
             timeout=5,
             auto_respond={YN_PROMPT: "Y"},
         )
-        assert "<WAC-1-GMF>" in result
+        assert "<WAC-CONTROLLER>" in result
 
 
 # ─── enter_system_view Tests (Requirements 4.4, 4.5) ───
@@ -431,7 +431,7 @@ class TestEnterSystemView:
             session.connect()
 
         mock_paramiko["channel"].recv_ready.return_value = True
-        mock_paramiko["channel"].recv.return_value = b"[WAC-1-GMF]"
+        mock_paramiko["channel"].recv.return_value = b"[WAC-CONTROLLER]"
 
         # Should not raise
         session.enter_system_view()

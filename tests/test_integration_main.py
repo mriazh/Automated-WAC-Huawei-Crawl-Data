@@ -36,9 +36,9 @@ def test_config():
 def sample_ap_list():
     """Sample parsed AP list with online and offline APs."""
     return [
-        APEntry(name="AP-H3-L1-IN11", ip="172.16.25.159", ap_id=1, is_offline=False),
-        APEntry(name="AP-MD-L1-OUT01", ip="--", ap_id=2, is_offline=True),
-        APEntry(name="AP-H4-L2-IN05", ip="172.16.25.200", ap_id=3, is_offline=False),
+        APEntry(name="AP-BLDG-A-L1-IN01", ip="192.0.2.10", ap_id=1, is_offline=False),
+        APEntry(name="AP-BLDG-B-L1-OUT01", ip="--", ap_id=2, is_offline=True),
+        APEntry(name="AP-BLDG-C-L2-IN05", ip="192.0.2.20", ap_id=3, is_offline=False),
     ]
 
 
@@ -46,8 +46,8 @@ def sample_ap_list():
 def sample_switch_dict():
     """Sample switch dictionary."""
     return {
-        "ASW02-HG3-L2RW": "172.16.12.126",
-        "SW-MD-L1-2530": "172.16.12.163",
+        "SW-BLDG-A-L2": "198.51.100.10",
+        "SW-BLDG-B-L1": "198.51.100.20",
     }
 
 
@@ -56,18 +56,18 @@ def sample_crawl_results():
     """Sample crawl results matching the AP list."""
     return [
         CrawlResult(
-            ap_name="AP-H3-L1-IN11", ap_ip="172.16.25.159",
-            switch_name="ASW02-HG3-L2RW", switch_ip="172.16.12.126",
+            ap_name="AP-BLDG-A-L1-IN01", ap_ip="192.0.2.10",
+            switch_name="SW-BLDG-A-L2", switch_ip="198.51.100.10",
             status="success",
         ),
         CrawlResult(
-            ap_name="AP-MD-L1-OUT01", ap_ip="--",
+            ap_name="AP-BLDG-B-L1-OUT01", ap_ip="--",
             switch_name="N/A", switch_ip="N/A",
             status="skipped",
         ),
         CrawlResult(
-            ap_name="AP-H4-L2-IN05", ap_ip="172.16.25.200",
-            switch_name="SW-MD-L1-2530", switch_ip="172.16.12.163",
+            ap_name="AP-BLDG-C-L2-IN05", ap_ip="192.0.2.20",
+            switch_name="SW-BLDG-B-L1", switch_ip="198.51.100.20",
             status="success",
         ),
     ]
@@ -118,12 +118,12 @@ class TestMainIntegrationFullFlow:
             assert len(data_rows) == 2
 
             # First successful AP
-            assert data_rows[0][0] == "AP-H3-L1-IN11 (172.16.25.159)"
-            assert data_rows[0][1] == "ASW02-HG3-L2RW (172.16.12.126)"
+            assert data_rows[0][0] == "AP-BLDG-A-L1-IN01 (192.0.2.10)"
+            assert data_rows[0][1] == "SW-BLDG-A-L2 (198.51.100.10)"
 
             # Second successful AP
-            assert data_rows[1][0] == "AP-H4-L2-IN05 (172.16.25.200)"
-            assert data_rows[1][1] == "SW-MD-L1-2530 (172.16.12.163)"
+            assert data_rows[1][0] == "AP-BLDG-C-L2-IN05 (192.0.2.20)"
+            assert data_rows[1][1] == "SW-BLDG-B-L1 (198.51.100.20)"
 
             # Verify SSH lifecycle was called correctly
             mock_session.connect.assert_called_once()
@@ -141,11 +141,11 @@ class TestMainIntegrationFullFlow:
         mock_session = MagicMock()
 
         ap_list = [
-            APEntry(name="AP-FAIL-01", ip="172.16.1.1", ap_id=10, is_offline=False),
+            APEntry(name="AP-FAIL-01", ip="192.0.2.50", ap_id=10, is_offline=False),
         ]
         results = [
             CrawlResult(
-                ap_name="AP-FAIL-01", ap_ip="172.16.1.1",
+                ap_name="AP-FAIL-01", ap_ip="192.0.2.50",
                 switch_name="N/A", switch_ip="N/A",
                 status="failed", error="Timeout",
             ),
@@ -191,8 +191,8 @@ class TestMainIntegrationFullFlow:
 
         results = [
             CrawlResult(
-                ap_name="AP-H3-L1-IN11", ap_ip="172.16.25.159",
-                switch_name="ASW02-HG3-L2RW", switch_ip="172.16.12.126",
+                ap_name="AP-BLDG-A-L1-IN01", ap_ip="192.0.2.10",
+                switch_name="SW-BLDG-A-L2", switch_ip="198.51.100.10",
                 status="success",
             )
         ]
@@ -315,8 +315,8 @@ class TestMainIntegrationFullFlow:
 
         results = [
             CrawlResult(
-                ap_name="AP-TEST", ap_ip="172.16.1.1",
-                switch_name="SW-TEST", switch_ip="172.16.2.1",
+                ap_name="AP-TEST", ap_ip="192.0.2.30",
+                switch_name="SW-TEST", switch_ip="198.51.100.30",
                 status="success",
             )
         ]

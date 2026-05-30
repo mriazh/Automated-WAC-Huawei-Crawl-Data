@@ -15,9 +15,9 @@ from config import Config
 logger = logging.getLogger(__name__)
 
 # Prompt detection patterns
-WAC_USER_PROMPT = r"<[\w\-]+>"  # <WAC-1-GMF>
-WAC_SYSTEM_PROMPT = r"\[[\w\-]+\]"  # [WAC-1-GMF]
-AP_PROMPT = r"<[\w\-\s]+>"  # <AP-H3-L1-IN11>
+WAC_USER_PROMPT = r"<[\w\-]+>"  # <WAC-CONTROLLER>
+WAC_SYSTEM_PROMPT = r"\[[\w\-]+\]"  # [WAC-CONTROLLER]
+AP_PROMPT = r"<[\w\-\s]+>"  # <AP-BLDG-A-L1-IN01>
 YN_PROMPT = r"\[Y/N\]"  # Interactive Y/N question
 
 

@@ -142,9 +142,9 @@ class TestReadExistingCsv:
 
     def test_handles_ap_name_with_spaces(self, tmp_path):
         csv_file = tmp_path / CSV_FILENAME
-        csv_file.write_text('"AP","Switch"\n"AP-H4-L1-OUT 55 (172.16.24.150)","ASW01-HG4-1D (172.16.13.204)"\n')
+        csv_file.write_text('"AP","Switch"\n"AP-BLDG-A-L1 55 (192.0.2.50)","SW-BLDG-A-1D (198.51.100.40)"\n')
         result = read_existing_csv(str(tmp_path))
-        assert "AP-H4-L1-OUT 55" in result
+        assert "AP-BLDG-A-L1 55" in result
 
 
 # ============================================================

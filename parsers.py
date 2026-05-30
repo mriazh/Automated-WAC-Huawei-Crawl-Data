@@ -163,7 +163,7 @@ def parse_lldp_output(output: str, ap_name: str = "") -> list[str]:
         stripped = data_line.strip()
         if not stripped:
             continue
-        # Skip lines that look like prompts (e.g., <AP-H3-L1-IN11>)
+        # Skip lines that look like prompts (e.g., <AP-TEST-01>)
         if stripped.startswith("<") and stripped.endswith(">"):
             continue
 

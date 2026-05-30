@@ -17,11 +17,11 @@ from parsers import APEntry, parse_ap_list, parse_lldp_output, parse_switch_list
 class TestParseApList:
     def test_valid_file(self, tmp_path):
         f = tmp_path / "list_ap.txt"
-        f.write_text("AP-TEST-01\t172.16.1.1\t0\nAP-TEST-02\t172.16.1.2\t1\n")
+        f.write_text("AP-TEST-01\t192.0.2.1\t0\nAP-TEST-02\t192.0.2.2\t1\n")
         result = parse_ap_list(str(f))
         assert len(result) == 2
         assert result[0].name == "AP-TEST-01"
-        assert result[0].ip == "172.16.1.1"
+        assert result[0].ip == "192.0.2.1"
         assert result[0].ap_id == 0
         assert result[0].is_offline is False
 
@@ -82,16 +82,16 @@ class TestParseApList:
 class TestParseSwitchList:
     def test_valid_file(self, tmp_path):
         f = tmp_path / "list_switch.txt"
-        f.write_text("ASW01-HG4-1A\t172.16.13.201\nSW-MD-L1-2530\t172.16.12.163\n")
+        f.write_text("SW-BLDG-C-1A\t198.51.100.30\nSW-BLDG-B-L1\t198.51.100.20\n")
         result = parse_switch_list(str(f))
-        assert result["ASW01-HG4-1A"] == "172.16.13.201"
-        assert result["SW-MD-L1-2530"] == "172.16.12.163"
+        assert result["SW-BLDG-C-1A"] == "198.51.100.30"
+        assert result["SW-BLDG-B-L1"] == "198.51.100.20"
 
     def test_whitespace_trimming(self, tmp_path):
         f = tmp_path / "list_switch.txt"
-        f.write_text("CORE DISTRI HG4 \t 172.16.13.1 \n")
+        f.write_text("CORE SWITCH MAIN \t 198.51.100.1 \n")
         result = parse_switch_list(str(f))
-        assert result["CORE DISTRI HG4"] == "172.16.13.1"
+        assert result["CORE SWITCH MAIN"] == "198.51.100.1"
 
     def test_duplicate_uses_last(self, tmp_path):
         f = tmp_path / "list_switch.txt"
@@ -119,16 +119,16 @@ class TestParseLldpOutput:
     def test_valid_output(self):
         output = (
             "Local Intf         Neighbor Dev                     Neighbor Intf             Exptime\n"
-            "GE0/0/0            ASW02-HG3-L2RW                   85                        102\n"
+            "GE0/0/0            SW-BLDG-A-L2                     85                        102\n"
         )
-        assert parse_lldp_output(output) == ["ASW02-HG3-L2RW"]
+        assert parse_lldp_output(output) == ["SW-BLDG-A-L2"]
 
     def test_switch_name_with_spaces(self):
         output = (
             "Local Intf         Neighbor Dev                     Neighbor Intf             Exptime\n"
-            "GE0/0/0            CORE DISTRI HG4                  85                        102\n"
+            "GE0/0/0            CORE SWITCH MAIN                 85                        102\n"
         )
-        assert parse_lldp_output(output) == ["CORE DISTRI HG4"]
+        assert parse_lldp_output(output) == ["CORE SWITCH MAIN"]
 
     def test_empty_output(self):
         assert parse_lldp_output("") == []
@@ -145,7 +145,7 @@ class TestParseLldpOutput:
     def test_skip_prompt_lines(self):
         output = (
             "Local Intf         Neighbor Dev                     Neighbor Intf             Exptime\n"
-            "<AP-H3-L1-IN11>\n"
+            "<AP-TEST-01>\n"
         )
         assert parse_lldp_output(output) == []
 
@@ -170,9 +170,9 @@ class TestParseLldpOutput:
     def test_three_neighbors(self):
         output = (
             "Local Intf         Neighbor Dev                     Neighbor Intf             Exptime\n"
-            "GE0/0/0            AP-MD-L1-IN07                    GE0/0/0                   116\n"
-            "GE0/0/0            AP-MD-L1-IN14                    GE0/0/0                   117\n"
-            "GE0/0/0            ASW01-MD-L1                      178                       119\n"
+            "GE0/0/0            AP-BLDG-B-L1-IN07                GE0/0/0                   116\n"
+            "GE0/0/0            AP-BLDG-B-L1-IN14                GE0/0/0                   117\n"
+            "GE0/0/0            SW-BLDG-B-L1-CORE                178                       119\n"
         )
         result = parse_lldp_output(output)
-        assert result == ["AP-MD-L1-IN07", "AP-MD-L1-IN14", "ASW01-MD-L1"]
+        assert result == ["AP-BLDG-B-L1-IN07", "AP-BLDG-B-L1-IN14", "SW-BLDG-B-L1-CORE"]
