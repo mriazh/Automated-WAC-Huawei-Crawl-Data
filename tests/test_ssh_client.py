@@ -14,6 +14,7 @@ import pytest
 
 from config import Config
 from ssh_client import (
+    SSHConnectionError,
     SSHSession,
     WAC_USER_PROMPT,
     WAC_SYSTEM_PROMPT,
@@ -86,7 +87,7 @@ class TestConnect:
         assert session.channel is mock_paramiko["channel"]
 
     def test_connect_authentication_failure(self, config, mock_paramiko):
-        """connect() exits on authentication failure."""
+        """connect() raises SSHConnectionError on authentication failure."""
         import paramiko
 
         mock_paramiko["client"].connect.side_effect = paramiko.AuthenticationException(
@@ -95,11 +96,11 @@ class TestConnect:
         session = SSHSession(config)
 
         with patch("ssh_client.time.sleep"):
-            with pytest.raises(SystemExit):
+            with pytest.raises(SSHConnectionError):
                 session.connect()
 
     def test_connect_ssh_exception(self, config, mock_paramiko):
-        """connect() exits on SSH exception."""
+        """connect() raises SSHConnectionError on SSH exception."""
         import paramiko
 
         mock_paramiko["client"].connect.side_effect = paramiko.SSHException(
@@ -108,25 +109,25 @@ class TestConnect:
         session = SSHSession(config)
 
         with patch("ssh_client.time.sleep"):
-            with pytest.raises(SystemExit):
+            with pytest.raises(SSHConnectionError):
                 session.connect()
 
     def test_connect_os_error(self, config, mock_paramiko):
-        """connect() exits on OS error (unreachable host)."""
+        """connect() raises SSHConnectionError on OS error (unreachable host)."""
         mock_paramiko["client"].connect.side_effect = OSError("Network unreachable")
         session = SSHSession(config)
 
         with patch("ssh_client.time.sleep"):
-            with pytest.raises(SystemExit):
+            with pytest.raises(SSHConnectionError):
                 session.connect()
 
     def test_connect_generic_exception(self, config, mock_paramiko):
-        """connect() exits on unexpected exceptions."""
+        """connect() raises SSHConnectionError on unexpected exceptions."""
         mock_paramiko["client"].connect.side_effect = RuntimeError("Unexpected")
         session = SSHSession(config)
 
         with patch("ssh_client.time.sleep"):
-            with pytest.raises(SystemExit):
+            with pytest.raises(SSHConnectionError):
                 session.connect()
 
     def test_connect_drains_initial_banner(self, config, mock_paramiko):
@@ -441,7 +442,7 @@ class TestEnterSystemView:
         assert len(sv_calls) == 1
 
     def test_enter_system_view_timeout_exits(self, config, mock_paramiko):
-        """enter_system_view() exits when prompt not received within 10s."""
+        """enter_system_view() raises SSHConnectionError when prompt not received within 10s."""
         session = SSHSession(config)
 
         with patch("ssh_client.time.sleep"):
@@ -451,11 +452,11 @@ class TestEnterSystemView:
 
         with patch("ssh_client.time.time") as mock_time:
             mock_time.side_effect = [0, 0, 5, 11, 20]
-            with pytest.raises(SystemExit):
+            with pytest.raises(SSHConnectionError):
                 session.enter_system_view()
 
     def test_enter_system_view_wrong_prompt(self, config, mock_paramiko):
-        """enter_system_view() exits when wrong prompt is received (timeout)."""
+        """enter_system_view() raises SSHConnectionError when wrong prompt is received (timeout)."""
         session = SSHSession(config)
 
         with patch("ssh_client.time.sleep"):
@@ -466,5 +467,5 @@ class TestEnterSystemView:
 
         with patch("ssh_client.time.time") as mock_time:
             mock_time.side_effect = [0, 0, 5, 11, 20]
-            with pytest.raises(SystemExit):
+            with pytest.raises(SSHConnectionError):
                 session.enter_system_view()

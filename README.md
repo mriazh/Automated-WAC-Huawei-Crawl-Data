@@ -36,7 +36,7 @@ CSV file (`lldp_result.csv`) with the following format:
 ### Step 1: Download the project
 
 ```bash
-git clone https://github.com/USERNAME/Automated-WAC-Huawei-Crawl-Data.git
+git clone https://github.com/mriazh/Automated-WAC-Huawei-Crawl-Data.git
 cd Automated-WAC-Huawei-Crawl-Data
 ```
 

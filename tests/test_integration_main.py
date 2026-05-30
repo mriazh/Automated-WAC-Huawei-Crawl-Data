@@ -207,7 +207,7 @@ class TestMainIntegrationFullFlow:
                  patch("main.SSHSession", return_value=mock_session), \
                  patch("main.crawl_all_aps", return_value=results), \
                  patch("main.write_csv", return_value="lldp_result.csv"), \
-                 patch("main.print_summary"), \
+                 patch("main._display_rich_summary"), \
                  patch("main.read_existing_csv", return_value=set()):
 
                 from main import main
@@ -252,12 +252,14 @@ class TestMainIntegrationFullFlow:
     def test_main_disconnect_called_on_enter_system_view_failure(
         self, tmp_path, test_config
     ):
-        """disconnect() is called when enter_system_view() raises SystemExit.
+        """disconnect() is called when enter_system_view() raises SSHConnectionError.
 
         Validates Requirement 10.2: cleanup on SSH command failure.
         """
+        from ssh_client import SSHConnectionError
+
         mock_session = MagicMock()
-        mock_session.enter_system_view.side_effect = SystemExit(1)
+        mock_session.enter_system_view.side_effect = SSHConnectionError("timeout")
 
         original_cwd = os.getcwd()
         os.chdir(tmp_path)
@@ -270,8 +272,7 @@ class TestMainIntegrationFullFlow:
                  patch("main.read_existing_csv", return_value=set()):
 
                 from main import main
-                with pytest.raises(SystemExit):
-                    main()
+                main()  # Should not raise — SSHConnectionError is caught
 
             # disconnect must be called even though enter_system_view failed
             mock_session.disconnect.assert_called_once()

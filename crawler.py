@@ -322,7 +322,11 @@ def crawl_single_ap(
             ))
 
         # Step 7: Exit AP session and drain leftover buffer
-        exit_ap_session(session)
+        if not exit_ap_session(session):
+            logger.warning(
+                "AP '%s' did not return to WAC prompt after LLDP crawl; draining buffer before continuing",
+                ap.name,
+            )
         _drain_buffer(session)
 
         return results

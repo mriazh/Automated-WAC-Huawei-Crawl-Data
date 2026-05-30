@@ -7,3 +7,6 @@ venv/
 list_ap.txt
 list_switch.txt
 .kiro
+
+.pytest_cache/
+.hypothesis/

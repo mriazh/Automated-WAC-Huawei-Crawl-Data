@@ -17,9 +17,9 @@ from rich.table import Table
 
 from config import load_config
 from crawler import crawl_all_aps
-from output import print_summary, read_existing_csv, write_csv
+from output import read_existing_csv, write_csv
 from parsers import parse_ap_list, parse_switch_list
-from ssh_client import SSHSession
+from ssh_client import SSHConnectionError, SSHSession
 
 # Rich console for colorful output
 console = Console()
@@ -197,6 +197,9 @@ def main() -> None:
 
         # Check for existing CSV to resume from
         already_done = read_existing_csv()
+        # Only count APs that are still in the current list
+        current_ap_names = {ap.name for ap in ap_list}
+        already_done = already_done & current_ap_names
         resumed_count = len(already_done)
 
         remaining = len(ap_list) - resumed_count
@@ -229,6 +232,9 @@ def main() -> None:
 
         _display_rich_summary(results, filepath, resumed_count=resumed_count)
 
+    except SSHConnectionError as e:
+        console.print(f"\n[bold red]❌ {e}[/bold red]")
+        _logger.error("SSH connection error: %s", e)
     except KeyboardInterrupt:
         console.print(f"\n\n[bold yellow]⚠️  Interrupted by user (Ctrl+C). Saving partial results...[/bold yellow]")
         if results:

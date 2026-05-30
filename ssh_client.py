@@ -22,15 +22,15 @@ AP_PROMPT = r"<[\w\-\s]+>"  # <AP-H3-L1-IN11>
 YN_PROMPT = r"\[Y/N\]"  # Interactive Y/N question
 
 
+class SSHConnectionError(RuntimeError):
+    """Raised when SSH connection setup fails."""
+
+
 class SSHSession:
     """Manages SSH connection to WAC with interactive shell support."""
 
     def __init__(self, config: Config):
-        """Initialize with config. Does not connect yet.
-
-        Args:
-            config: Config dataclass with SSH connection parameters.
-        """
+        """Initialize with config. Does not connect yet."""
         self.config = config
         self.client: paramiko.SSHClient | None = None
         self.channel: paramiko.Channel | None = None
@@ -39,7 +39,7 @@ class SSHSession:
         """Establish SSH connection and invoke interactive shell.
 
         Auto-accepts host key using paramiko AutoAddPolicy.
-        Raises SystemExit on connection failure or timeout.
+        Raises SSHConnectionError on connection failure or timeout.
         """
         try:
             self.client = paramiko.SSHClient()
@@ -58,22 +58,20 @@ class SSHSession:
             if self.channel.recv_ready():
                 self.channel.recv(65535)
         except paramiko.AuthenticationException as e:
-            print(f"Error: SSH authentication failed - {e}")
-            sys.exit(1)
+            raise SSHConnectionError(f"SSH authentication failed - {e}") from e
         except paramiko.SSHException as e:
-            print(f"Error: SSH connection failed - {e}")
-            sys.exit(1)
+            raise SSHConnectionError(f"SSH connection failed - {e}") from e
         except OSError as e:
-            print(f"Error: Unable to connect to {self.config.host}:{self.config.port} - {e}")
-            sys.exit(1)
+            raise SSHConnectionError(
+                f"Unable to connect to {self.config.host}:{self.config.port} - {e}"
+            ) from e
         except Exception as e:
-            print(f"Error: SSH connection failed - {e}")
-            sys.exit(1)
+            raise SSHConnectionError(f"SSH connection failed - {e}") from e
 
     def enter_system_view(self) -> None:
         """Send 'system-view' command and wait for [WAC] prompt.
 
-        Raises SystemExit if prompt not received within 10 seconds.
+        Raises SSHConnectionError if prompt not received within 10 seconds.
         """
         try:
             self.send_command(
@@ -81,9 +79,10 @@ class SSHSession:
                 timeout=10,
                 expect_patterns=[WAC_SYSTEM_PROMPT],
             )
-        except TimeoutError:
-            print("Error: Failed to enter system-view - prompt not received within 10 seconds")
-            sys.exit(1)
+        except TimeoutError as e:
+            raise SSHConnectionError(
+                "Failed to enter system-view - prompt not received within 10 seconds"
+            ) from e
 
     def send_command(
         self,

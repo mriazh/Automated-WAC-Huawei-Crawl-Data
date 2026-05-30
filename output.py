@@ -5,10 +5,13 @@ and displays crawl execution statistics.
 """
 
 import csv
+import logging
 import os
 import re
 
 from crawler import CrawlResult
+
+logger = logging.getLogger(__name__)
 
 CSV_FILENAME = "lldp_result.csv"
 
@@ -18,6 +21,7 @@ def read_existing_csv(output_dir: str = ".") -> set[str]:
 
     Used for resume mode — skip APs that already have results.
     Returns empty set if file doesn't exist or is empty.
+    Logs warning on read errors instead of silently ignoring.
     """
     filepath = os.path.join(output_dir, CSV_FILENAME)
     done = set()
@@ -35,8 +39,10 @@ def read_existing_csv(output_dir: str = ".") -> set[str]:
                     match = re.match(r"^(.+?)\s*\(", row[0])
                     if match:
                         done.add(match.group(1))
-    except Exception:
-        pass
+    except OSError as e:
+        logger.warning("Could not read existing CSV '%s': %s", filepath, e)
+    except csv.Error as e:
+        logger.warning("Existing CSV '%s' is malformed: %s", filepath, e)
 
     return done
 
@@ -90,7 +96,7 @@ def write_csv(results: list[CrawlResult], output_dir: str = ".",
 
 def print_summary(results: list[CrawlResult], filepath: str,
                   resumed_count: int = 0) -> None:
-    """Print crawl summary statistics to stdout.
+    """Fallback plain-text summary used by tests and non-Rich environments.
 
     Shows: total, skipped, successful, failed counts.
     Shows output file path.
