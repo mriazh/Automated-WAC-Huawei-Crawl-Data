@@ -272,7 +272,9 @@ class TestMainIntegrationFullFlow:
                  patch("main.read_existing_csv", return_value=set()):
 
                 from main import main
-                main()  # Should not raise — SSHConnectionError is caught
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+                assert exc_info.value.code == 1
 
             # disconnect must be called even though enter_system_view failed
             mock_session.disconnect.assert_called_once()

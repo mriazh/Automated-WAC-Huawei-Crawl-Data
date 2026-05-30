@@ -235,6 +235,7 @@ def main() -> None:
     except SSHConnectionError as e:
         console.print(f"\n[bold red]❌ {e}[/bold red]")
         _logger.error("SSH connection error: %s", e)
+        sys.exit(1)
     except KeyboardInterrupt:
         console.print(f"\n\n[bold yellow]⚠️  Interrupted by user (Ctrl+C). Saving partial results...[/bold yellow]")
         if results:

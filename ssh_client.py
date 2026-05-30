@@ -6,7 +6,6 @@ sends commands, and detects prompts using regex patterns.
 
 import logging
 import re
-import sys
 import time
 
 import paramiko
