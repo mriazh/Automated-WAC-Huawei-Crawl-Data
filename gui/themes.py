@@ -4,8 +4,8 @@ Provides DARK_STYLESHEET and LIGHT_STYLESHEET as QSS strings,
 a ThemeToggle button widget, and an apply_theme helper function.
 """
 
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QApplication, QPushButton, QWidget
 
 
 DARK_STYLESHEET = """
@@ -58,19 +58,7 @@ QLabel {
 QCheckBox {
     color: #cdd6f4;
     spacing: 8px;
-}
-
-QCheckBox::indicator {
-    width: 16px;
-    height: 16px;
-    border: 1px solid #45475a;
-    border-radius: 3px;
-    background-color: #313244;
-}
-
-QCheckBox::indicator:checked {
-    background-color: #89b4fa;
-    border-color: #89b4fa;
+    padding-left: 2px;
 }
 
 QProgressBar {
@@ -176,19 +164,7 @@ QLabel {
 QCheckBox {
     color: #1e1e2e;
     spacing: 8px;
-}
-
-QCheckBox::indicator {
-    width: 16px;
-    height: 16px;
-    border: 1px solid #dcdcdc;
-    border-radius: 3px;
-    background-color: #f5f5f5;
-}
-
-QCheckBox::indicator:checked {
-    background-color: #1e66f5;
-    border-color: #1e66f5;
+    padding-left: 2px;
 }
 
 QProgressBar {
@@ -245,46 +221,93 @@ QFormLayout {
 """
 
 
-class ThemeToggle(QPushButton):
-    """Toggle button that switches between dark and light themes.
+class ThemeToggle(QWidget):
+    """Animated toggle switch for dark/light theme.
 
+    Pill-shaped slider with sun/moon icon that slides between positions.
     Emits theme_changed(str) signal with "dark" or "light" when toggled.
-    Displays a moon icon (dark mode active) or sun icon (light mode active).
     """
 
     theme_changed = Signal(str)
 
     def __init__(self, initial_theme: str = "dark", parent=None):
-        """Initialize the theme toggle button.
-
-        Args:
-            initial_theme: Starting theme, either "dark" or "light".
-            parent: Optional parent widget.
-        """
         super().__init__(parent)
         self._current_theme = initial_theme if initial_theme in ("dark", "light") else "dark"
-        self._update_display()
-        self.clicked.connect(self._toggle)
-        self.setFixedSize(40, 40)
-        self.setToolTip("Toggle theme")
+        self.setFixedSize(56, 28)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Toggle dark/light theme")
 
     @property
     def current_theme(self) -> str:
         """Return the currently active theme name."""
         return self._current_theme
 
-    def _toggle(self) -> None:
-        """Switch to the opposite theme and emit signal."""
+    def mousePressEvent(self, event) -> None:
+        """Toggle theme on click."""
         self._current_theme = "light" if self._current_theme == "dark" else "dark"
-        self._update_display()
+        self.update()
         self.theme_changed.emit(self._current_theme)
 
-    def _update_display(self) -> None:
-        """Update button text to reflect current theme state."""
+    def paintEvent(self, event) -> None:
+        """Draw the toggle switch with pill shape and sliding circle."""
+        from PySide6.QtGui import QPainter, QColor, QPen, QBrush
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w, h = self.width(), self.height()
+        radius = h // 2
+        circle_margin = 3
+        circle_size = h - (circle_margin * 2)
+
         if self._current_theme == "dark":
-            self.setText("\U0001f319")  # 🌙 moon - indicates dark mode is active
+            # Dark mode: match dark theme accent (#89b4fa)
+            track_color = QColor("#313244")
+            circle_color = QColor("#89b4fa")
+            circle_x = w - circle_size - circle_margin  # Right side
         else:
-            self.setText("\u2600\ufe0f")  # ☀️ sun - indicates light mode is active
+            # Light mode: match light theme accent (#1e66f5)
+            track_color = QColor("#dcdcdc")
+            circle_color = QColor("#1e66f5")
+            circle_x = circle_margin  # Left side
+
+        # Draw track (pill shape)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(track_color))
+        painter.drawRoundedRect(0, 0, w, h, radius, radius)
+
+        # Draw circle
+        painter.setBrush(QBrush(circle_color))
+        painter.drawEllipse(int(circle_x), circle_margin, circle_size, circle_size)
+
+        # Draw icon inside circle
+        painter.setPen(QPen(QColor("#ffffff"), 1.5))
+        cx = int(circle_x) + circle_size // 2
+        cy = circle_margin + circle_size // 2
+        icon_r = circle_size // 4
+
+        if self._current_theme == "dark":
+            # Moon crescent
+            painter.setBrush(QBrush(QColor("#ffffff")))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(cx - icon_r, cy - icon_r, icon_r * 2, icon_r * 2)
+            painter.setBrush(QBrush(circle_color))
+            painter.drawEllipse(cx - icon_r + 3, cy - icon_r - 2, icon_r * 2, icon_r * 2)
+        else:
+            # Sun rays
+            import math
+            painter.setPen(QPen(QColor("#ffffff"), 2))
+            painter.setBrush(QBrush(QColor("#ffffff")))
+            painter.drawEllipse(cx - 3, cy - 3, 6, 6)
+            for i in range(8):
+                angle = i * math.pi / 4
+                x1 = cx + int(5 * math.cos(angle))
+                y1 = cy + int(5 * math.sin(angle))
+                x2 = cx + int(7 * math.cos(angle))
+                y2 = cy + int(7 * math.sin(angle))
+                painter.drawLine(x1, y1, x2, y2)
+
+        painter.end()
 
 
 def apply_theme(app: QApplication, theme_name: str) -> None:
@@ -298,3 +321,5 @@ def apply_theme(app: QApplication, theme_name: str) -> None:
         app.setStyleSheet(LIGHT_STYLESHEET)
     else:
         app.setStyleSheet(DARK_STYLESHEET)
+    # Process events immediately to reduce visual flash
+    app.processEvents()

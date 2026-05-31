@@ -60,9 +60,17 @@ class MainWindow(QMainWindow):
         self._apply_stored_theme()
 
     def _setup_window(self) -> None:
-        """Configure window title and minimum size."""
+        """Configure window title, size, and icon."""
         self.setWindowTitle("WAC Huawei LLDP Crawl Data")
-        self.setMinimumSize(700, 550)
+        self.setMinimumSize(500, 400)
+        self.resize(550, 450)
+
+        # Set window icon from assets/huawei.svg
+        import os
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "huawei.svg")
+        if os.path.exists(icon_path):
+            from PySide6.QtGui import QIcon
+            self.setWindowIcon(QIcon(icon_path))
 
     def _setup_toolbar(self) -> None:
         """Create toolbar with ThemeToggle positioned at the top-right."""
@@ -108,14 +116,14 @@ class MainWindow(QMainWindow):
             apply_theme(app, theme)
 
     def _on_theme_changed(self, theme_name: str) -> None:
-        """Handle theme toggle: apply theme and persist preference.
-
-        Args:
-            theme_name: Either "dark" or "light".
-        """
+        """Handle theme toggle: apply theme and persist preference."""
         app = self._get_application()
         if app:
             apply_theme(app, theme_name)
+
+        # Update login page checkbox theme
+        if hasattr(self._login_page, '_remember_checkbox'):
+            self._login_page._remember_checkbox.set_theme(theme_name)
 
         # Persist theme preference
         config = self._config_store.load()

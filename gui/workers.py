@@ -140,8 +140,48 @@ class ConnectVerifier(QRunnable):
         self.signals = self.Signals()
 
     def run(self) -> None:
-        """Attempt SSH connect + enter_system_view, emit appropriate signal."""
+        """Attempt SSH connect with smart error differentiation.
+
+        Uses paramiko directly but catches errors at different stages:
+        - Socket/transport level errors → host/port problem
+        - Authentication errors → credential problem
+        """
+        import socket
+        from datetime import datetime
+
+        logger.info("")
+        logger.info("=" * 50)
+        logger.info("CONNECTION START — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        logger.info("=" * 50)
+        logger.info("")
+        logger.info("  Host     : %s", self._host)
+        logger.info("  Port     : %d", self._port)
+        logger.info("  Username : %s", self._username)
+        logger.info("  Timeout  : %ds", self._ssh_timeout)
+        logger.info("")
+
+        import paramiko
+
         try:
+            # Step 1: TCP + SSH handshake (verifies host, port, and SSH service)
+            logger.info("  Step 1   : SSH handshake (host + port + SSH service)...")
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+            # connect() does: TCP connect → SSH banner exchange → key exchange → auth
+            # If it fails before auth, it's a host/port/service problem
+            client.connect(
+                hostname=self._host,
+                port=self._port,
+                username=self._username,
+                password=self._password,
+                timeout=self._ssh_timeout,
+                auth_timeout=self._ssh_timeout,
+            )
+            logger.info("  Step 1   : OK (SSH connected + authenticated)")
+
+            # Step 2: Enter system-view (verifies it's a WAC device)
+            logger.info("  Step 2   : Enter system-view...")
             config = Config(
                 host=self._host,
                 port=self._port,
@@ -150,11 +190,84 @@ class ConnectVerifier(QRunnable):
                 ssh_timeout=self._ssh_timeout,
             )
             session = SSHSession(config)
-            session.connect()
+            session.client = client
+            session.channel = client.invoke_shell()
+
+            import time
+            time.sleep(1)
+            if session.channel.recv_ready():
+                session.channel.recv(65535)
+
             session.enter_system_view()
+            logger.info("  Step 2   : OK (system-view entered)")
+            logger.info("")
+            logger.info("  Result   : SUCCESS")
+            logger.info("")
+            logger.info("=" * 50)
+            logger.info("CONNECTION END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            logger.info("=" * 50)
+            logger.info("")
             self.signals.connected.emit(session)
+
+        except paramiko.AuthenticationException as e:
+            # Auth failed = host+port are CORRECT, credentials are WRONG
+            logger.info("  Step 1   : Host/port OK, auth failed")
+            logger.error("  Result   : FAILED (credentials)")
+            logger.error("  Error    : %s", e)
+            logger.info("")
+            logger.info("=" * 50)
+            logger.info("CONNECTION END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            logger.info("=" * 50)
+            logger.info("")
+            self.signals.failed.emit("auth_failed")
+
+        except (socket.timeout, OSError) as e:
+            # Socket-level error = host/port problem
+            error_str = str(e).lower()
+            logger.error("  Step 1   : FAILED (network/socket)")
+            logger.error("  Error    : %s", e)
+            logger.info("")
+            logger.info("=" * 50)
+            logger.info("CONNECTION END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            logger.info("=" * 50)
+            logger.info("")
+            if "timed out" in error_str or "10060" in error_str:
+                self.signals.failed.emit("host_port_timeout")
+            elif "refused" in error_str or "10061" in error_str:
+                self.signals.failed.emit("host_port_refused")
+            else:
+                self.signals.failed.emit(f"host_port_error:{e}")
+
+        except paramiko.SSHException as e:
+            # SSH protocol error (banner not received, key exchange failed, etc.)
+            # This means port is open but it's NOT a proper SSH server
+            logger.error("  Step 1   : FAILED (SSH protocol error)")
+            logger.error("  Error    : %s", e)
+            logger.info("")
+            logger.info("=" * 50)
+            logger.info("CONNECTION END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            logger.info("=" * 50)
+            logger.info("")
+            self.signals.failed.emit("ssh_protocol_error")
+
         except SSHConnectionError as e:
-            self.signals.failed.emit(str(e))
+            # system-view failed = connected but not a WAC device
+            error_str = str(e)
+            logger.error("  Step 2   : FAILED")
+            logger.error("  Error    : %s", e)
+            logger.info("")
+            logger.info("=" * 50)
+            logger.info("CONNECTION END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            logger.info("=" * 50)
+            logger.info("")
+            self.signals.failed.emit(f"not_wac:{error_str}")
+
         except Exception as e:
-            logger.error("Unexpected error in ConnectVerifier: %s", e)
-            self.signals.failed.emit(str(e))
+            logger.error("  Result   : FAILED (unexpected)")
+            logger.error("  Error    : %s", e)
+            logger.info("")
+            logger.info("=" * 50)
+            logger.info("CONNECTION END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            logger.info("=" * 50)
+            logger.info("")
+            self.signals.failed.emit(f"unexpected:{e}")

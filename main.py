@@ -32,7 +32,14 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     """Application entry point."""
-    logger.info("Application starting")
+    from datetime import datetime
+
+    logger.info("")
+    logger.info("")
+    logger.info("=" * 50)
+    logger.info("APP START — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("=" * 50)
+    logger.info("")
 
     app = QApplication(sys.argv)
 
@@ -49,7 +56,16 @@ def main() -> None:
     window.show()
 
     logger.info("Main window displayed")
-    sys.exit(app.exec())
+    exit_code = app.exec()
+
+    logger.info("")
+    logger.info("=" * 50)
+    logger.info("APP END — %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("=" * 50)
+    logger.info("")
+    logger.info("")
+
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
