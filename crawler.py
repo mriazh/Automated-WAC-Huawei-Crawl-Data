@@ -6,9 +6,13 @@ maps results to switch IPs via the switch dictionary.
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
-from tqdm import tqdm
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
 
 from config import Config
 from parsers import APEntry, parse_lldp_output
@@ -45,13 +49,19 @@ def crawl_all_aps(
     switch_dict: dict[str, str],
     config: Config,
     already_done: set[str] | None = None,
+    progress_callback: Callable[[CrawlResult], None] | None = None,
+    stop_check: Callable[[], bool] | None = None,
 ) -> list[CrawlResult]:
     """Iterate through all APs, crawl LLDP data, return results.
 
-    Uses tqdm progress bar with colorful status output.
+    Uses tqdm progress bar (if available) with colorful status output.
     Skips offline APs and already-completed APs (resume mode).
     Auto-reconnects SSH if connection drops.
-    Returns partial results on KeyboardInterrupt.
+    Returns partial results on KeyboardInterrupt or when stop_check returns True.
+
+    Args:
+        progress_callback: If provided, called after each AP result with the CrawlResult.
+        stop_check: If provided and returns True, breaks the loop early (controlled stop).
     """
     results: list[CrawlResult] = []
     total = len(ap_list)
@@ -63,15 +73,22 @@ def crawl_all_aps(
     success_count = 0
     fail_count = 0
 
-    pbar = tqdm(
-        total=len(to_process),
-        bar_format="{desc} {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
-        ncols=90,
-    )
-    pbar.set_description(f"Crawling: {ANSI_GREEN}✅ 0{ANSI_RESET} | {ANSI_RED}❌ 0{ANSI_RESET}")
+    pbar = None
+    if tqdm is not None:
+        pbar = tqdm(
+            total=len(to_process),
+            bar_format="{desc} {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+            ncols=90,
+        )
+        pbar.set_description(f"Crawling: {ANSI_GREEN}✅ 0{ANSI_RESET} | {ANSI_RED}❌ 0{ANSI_RESET}")
 
     try:
         for n, ap in enumerate(ap_list, start=1):
+            # Check if stop has been requested
+            if stop_check is not None and stop_check():
+                logger.info("Crawl stopped by stop_check at AP %d/%d", n, total)
+                break
+
             # Skip already-completed APs (resume mode)
             if ap.name in already_done:
                 logger.info("Skipped AP '%s' — already in CSV (resume mode)", ap.name)
@@ -81,18 +98,21 @@ def crawl_all_aps(
 
             # Skip offline APs
             if ap.is_offline:
-                pbar.write(f"  {ANSI_YELLOW}⏭️{ANSI_RESET}  [{n}/{total}] {ap.name} {ANSI_DIM}— offline, skipped{ANSI_RESET}")
+                if pbar is not None:
+                    pbar.write(f"  {ANSI_YELLOW}⏭️{ANSI_RESET}  [{n}/{total}] {ap.name} {ANSI_DIM}— offline, skipped{ANSI_RESET}")
                 logger.info("Skipped AP '%s' — no IP assigned", ap.name)
-                results.append(
-                    CrawlResult(
-                        ap_name=ap.name,
-                        ap_ip=ap.ip,
-                        switch_name="N/A",
-                        switch_ip="N/A",
-                        status="skipped",
-                    )
+                result = CrawlResult(
+                    ap_name=ap.name,
+                    ap_ip=ap.ip,
+                    switch_name="N/A",
+                    switch_ip="N/A",
+                    status="skipped",
                 )
-                pbar.update(1)
+                results.append(result)
+                if progress_callback is not None:
+                    progress_callback(result)
+                if pbar is not None:
+                    pbar.update(1)
                 continue
 
             # Crawl online AP
@@ -103,19 +123,24 @@ def crawl_all_aps(
 
                 if success_names:
                     neighbors_str = ", ".join(success_names)
-                    pbar.write(f"  {ANSI_GREEN}✅{ANSI_RESET} [{n}/{total}] {ap.name} → {ANSI_CYAN}{neighbors_str}{ANSI_RESET}")
+                    if pbar is not None:
+                        pbar.write(f"  {ANSI_GREEN}✅{ANSI_RESET} [{n}/{total}] {ap.name} → {ANSI_CYAN}{neighbors_str}{ANSI_RESET}")
                     for r in ap_results:
                         if r.status == "success":
                             logger.info("Success: %s -> %s (%s)", ap.name, r.switch_name, r.switch_ip)
                     success_count += 1
                 elif failed_results_ap:
                     err_short = failed_results_ap[0].error[:50]
-                    pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_DIM}— {err_short}{ANSI_RESET}")
+                    if pbar is not None:
+                        pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_DIM}— {err_short}{ANSI_RESET}")
                     for r in failed_results_ap:
                         logger.warning("Failed: %s — %s", ap.name, r.error)
                     fail_count += 1
 
                 results.extend(ap_results)
+                if progress_callback is not None:
+                    for r in ap_results:
+                        progress_callback(r)
             except KeyboardInterrupt:
                 raise
             except Exception as e:
@@ -123,7 +148,8 @@ def crawl_all_aps(
 
                 # Detect socket closed → attempt reconnect
                 if "socket is closed" in error_msg.lower() or "socket exception" in error_msg.lower():
-                    pbar.write(f"  {ANSI_YELLOW}⚡{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_YELLOW}— CONNECTION LOST{ANSI_RESET}")
+                    if pbar is not None:
+                        pbar.write(f"  {ANSI_YELLOW}⚡{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_YELLOW}— CONNECTION LOST{ANSI_RESET}")
                     logger.error("SSH connection lost at AP '%s' (ID: %d): %s", ap.name, ap.ap_id, error_msg)
 
                     # Attempt reconnect
@@ -135,61 +161,75 @@ def crawl_all_aps(
                             success_names = [r.switch_name for r in ap_results if r.status == "success"]
                             if success_names:
                                 neighbors_str = ", ".join(success_names)
-                                pbar.write(f"  {ANSI_GREEN}✅{ANSI_RESET} [{n}/{total}] {ap.name} (retry) → {ANSI_CYAN}{neighbors_str}{ANSI_RESET}")
+                                if pbar is not None:
+                                    pbar.write(f"  {ANSI_GREEN}✅{ANSI_RESET} [{n}/{total}] {ap.name} (retry) → {ANSI_CYAN}{neighbors_str}{ANSI_RESET}")
                                 for r in ap_results:
                                     if r.status == "success":
                                         logger.info("Success (after reconnect): %s -> %s (%s)", ap.name, r.switch_name, r.switch_ip)
                                 success_count += 1
                             else:
-                                pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} (retry) {ANSI_DIM}— failed{ANSI_RESET}")
+                                if pbar is not None:
+                                    pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} (retry) {ANSI_DIM}— failed{ANSI_RESET}")
                                 fail_count += 1
                             results.extend(ap_results)
+                            if progress_callback is not None:
+                                for r in ap_results:
+                                    progress_callback(r)
                         except Exception as retry_e:
-                            pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} (retry) {ANSI_DIM}— {retry_e}{ANSI_RESET}")
+                            if pbar is not None:
+                                pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} (retry) {ANSI_DIM}— {retry_e}{ANSI_RESET}")
                             logger.error("Retry failed for AP '%s': %s", ap.name, retry_e)
                             fail_count += 1
-                            results.append(
-                                CrawlResult(
-                                    ap_name=ap.name, ap_ip=ap.ip,
-                                    switch_name="N/A", switch_ip="N/A",
-                                    status="failed", error=str(retry_e),
-                                )
-                            )
-                    else:
-                        # Reconnect failed — stop crawling
-                        pbar.write(f"\n  {ANSI_RED}💀 Failed to reconnect SSH. Stopping crawl.{ANSI_RESET}")
-                        logger.error("SSH reconnect failed. Stopping crawl at AP %d/%d", n, total)
-                        fail_count += 1
-                        results.append(
-                            CrawlResult(
+                            result = CrawlResult(
                                 ap_name=ap.name, ap_ip=ap.ip,
                                 switch_name="N/A", switch_ip="N/A",
-                                status="failed", error="SSH reconnect failed",
+                                status="failed", error=str(retry_e),
                             )
+                            results.append(result)
+                            if progress_callback is not None:
+                                progress_callback(result)
+                    else:
+                        # Reconnect failed — stop crawling
+                        if pbar is not None:
+                            pbar.write(f"\n  {ANSI_RED}💀 Failed to reconnect SSH. Stopping crawl.{ANSI_RESET}")
+                        logger.error("SSH reconnect failed. Stopping crawl at AP %d/%d", n, total)
+                        fail_count += 1
+                        result = CrawlResult(
+                            ap_name=ap.name, ap_ip=ap.ip,
+                            switch_name="N/A", switch_ip="N/A",
+                            status="failed", error="SSH reconnect failed",
                         )
+                        results.append(result)
+                        if progress_callback is not None:
+                            progress_callback(result)
                         break
                 else:
                     err_short = error_msg[:50]
-                    pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_DIM}— {err_short}{ANSI_RESET}")
+                    if pbar is not None:
+                        pbar.write(f"  {ANSI_RED}❌{ANSI_RESET} [{n}/{total}] {ap.name} {ANSI_DIM}— {err_short}{ANSI_RESET}")
                     logger.error("Exception crawling AP '%s' (ID: %d): %s", ap.name, ap.ap_id, error_msg)
                     fail_count += 1
-                    results.append(
-                        CrawlResult(
-                            ap_name=ap.name, ap_ip=ap.ip,
-                            switch_name="N/A", switch_ip="N/A",
-                            status="failed", error=error_msg,
-                        )
+                    result = CrawlResult(
+                        ap_name=ap.name, ap_ip=ap.ip,
+                        switch_name="N/A", switch_ip="N/A",
+                        status="failed", error=error_msg,
                     )
+                    results.append(result)
+                    if progress_callback is not None:
+                        progress_callback(result)
 
             # Update progress bar description with live counts
-            pbar.set_description(f"Crawling: {ANSI_GREEN}✅ {success_count}{ANSI_RESET} | {ANSI_RED}❌ {fail_count}{ANSI_RESET}")
-            pbar.update(1)
+            if pbar is not None:
+                pbar.set_description(f"Crawling: {ANSI_GREEN}✅ {success_count}{ANSI_RESET} | {ANSI_RED}❌ {fail_count}{ANSI_RESET}")
+                pbar.update(1)
 
     except KeyboardInterrupt:
-        pbar.write(f"\n  {ANSI_YELLOW}⚠️  Crawl interrupted by user (Ctrl+C){ANSI_RESET}")
+        if pbar is not None:
+            pbar.write(f"\n  {ANSI_YELLOW}⚠️  Crawl interrupted by user (Ctrl+C){ANSI_RESET}")
         logger.info("Crawl interrupted by user at AP %d/%d", len(results) + 1, total)
     finally:
-        pbar.close()
+        if pbar is not None:
+            pbar.close()
 
     return results
 
