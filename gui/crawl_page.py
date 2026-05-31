@@ -647,7 +647,121 @@ class CrawlPage(QWidget):
         elif reason == "connection_lost":
             self._add_log_entry("Connection lost during crawl — progress saved", "failed")
 
+        # Generate and display summary
+        self._show_crawl_summary(reason)
+
         self._worker = None
+
+    def _show_crawl_summary(self, reason: str) -> None:
+        """Show crawl summary in live log and write detailed summary to crawl.log.
+
+        Reads the FULL CSV file to generate summary (not just current run),
+        so multi-neighbor (double) APs are always detected.
+        """
+        import csv
+        import re
+        from collections import Counter
+
+        output_dir = self._output_dir_input.text()
+        csv_path = os.path.join(output_dir, "lldp_result.csv")
+
+        if not os.path.exists(csv_path):
+            return
+
+        # Read full CSV to analyze
+        ap_to_switches = {}  # ap_name -> list of switch entries
+        total_rows = 0
+
+        try:
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                next(reader, None)  # skip header
+                for row in reader:
+                    if not row or len(row) < 2:
+                        continue
+                    total_rows += 1
+                    # Extract AP name from "AP_Name (IP)" format
+                    match = re.match(r"^(.+?)\s*\(", row[0])
+                    ap_name = match.group(1) if match else row[0]
+                    switch_entry = row[1]
+                    if ap_name not in ap_to_switches:
+                        ap_to_switches[ap_name] = []
+                    ap_to_switches[ap_name].append(switch_entry)
+        except Exception as e:
+            logger.error("Failed to read CSV for summary: %s", e)
+            return
+
+        unique_aps = len(ap_to_switches)
+        multi_neighbor_aps = {name: entries for name, entries in ap_to_switches.items() if len(entries) > 1}
+
+        # --- Live log summary (brief) ---
+        self._add_log_entry("", "info")
+        self._add_log_entry("═══ Summary (from CSV) ═══", "info")
+        self._add_log_entry(f"Total rows: {total_rows} | Unique APs: {unique_aps}", "info")
+
+        if multi_neighbor_aps:
+            self._add_log_entry(f"Multi-neighbor (double): {len(multi_neighbor_aps)}", "info")
+            for ap_name, entries in sorted(multi_neighbor_aps.items()):
+                self._add_log_entry(f"  • {ap_name} ({len(entries)} neighbors)", "info")
+
+        # Current run stats
+        this_run = self._results
+        if this_run:
+            success_count = sum(1 for r in this_run if r.status == "success")
+            failed_count = sum(1 for r in this_run if r.status == "failed")
+            skipped_count = sum(1 for r in this_run if r.status == "skipped")
+            self._add_log_entry(
+                f"This run: {success_count} success, {failed_count} failed, {skipped_count} skipped",
+                "info",
+            )
+
+        # --- Detailed log to crawl.log ---
+        logger.info("")
+        logger.info("=" * 50)
+        logger.info("CRAWL SUMMARY — %s", reason.upper())
+        logger.info("=" * 50)
+        logger.info("")
+        logger.info("  CSV file        : %s", csv_path)
+        logger.info("  Total rows      : %d", total_rows)
+        logger.info("  Unique APs      : %d", unique_aps)
+        logger.info("  Multi-neighbor  : %d", len(multi_neighbor_aps))
+        logger.info("")
+
+        if this_run:
+            success_count = sum(1 for r in this_run if r.status == "success")
+            failed_count = sum(1 for r in this_run if r.status == "failed")
+            skipped_count = sum(1 for r in this_run if r.status == "skipped")
+            logger.info("  --- This Run ---")
+            logger.info("  Success         : %d", success_count)
+            logger.info("  Failed          : %d", failed_count)
+            logger.info("  Skipped         : %d", skipped_count)
+            logger.info("")
+
+        if multi_neighbor_aps:
+            logger.info("  --- Multi-neighbor APs (double) ---")
+            for ap_name, entries in sorted(multi_neighbor_aps.items()):
+                logger.info("  %s (%d neighbors):", ap_name, len(entries))
+                for entry in entries:
+                    logger.info("    → %s", entry)
+            logger.info("")
+
+        if this_run:
+            failed_results = [r for r in this_run if r.status == "failed"]
+            if failed_results:
+                logger.info("  --- Failed APs (this run) ---")
+                for r in failed_results:
+                    logger.info("  %s (%s) — %s", r.ap_name, r.ap_ip, r.error)
+                logger.info("")
+
+            skipped_results = [r for r in this_run if r.status == "skipped"]
+            if skipped_results:
+                logger.info("  --- Skipped APs (offline) ---")
+                for r in skipped_results:
+                    logger.info("  %s (%s)", r.ap_name, r.ap_ip)
+                logger.info("")
+
+        logger.info("=" * 50)
+        logger.info("")
 
     def _on_crawl_error(self, error: str) -> None:
         """Handle crawl error signal."""
