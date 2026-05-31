@@ -27,6 +27,14 @@ class StoredConfig:
     switch_list_path: str = ""
     output_dir: str = ""
     theme: str = "dark"
+    host_history: list = None
+    username_history: list = None
+
+    def __post_init__(self):
+        if self.host_history is None:
+            self.host_history = []
+        if self.username_history is None:
+            self.username_history = []
 
 
 class ConfigStore:
@@ -72,7 +80,13 @@ class ConfigStore:
         # Build StoredConfig from loaded data, using defaults for missing fields
         valid_fields = {field.name for field in fields(StoredConfig)}
         filtered_data = {k: v for k, v in data.items() if k in valid_fields}
-        return StoredConfig(**filtered_data)
+        config = StoredConfig(**filtered_data)
+        # Ensure list fields are never None
+        if config.host_history is None:
+            config.host_history = []
+        if config.username_history is None:
+            config.username_history = []
+        return config
 
     def save(self, config: StoredConfig) -> None:
         """Write config to disk as JSON. Creates directory if needed."""

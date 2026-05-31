@@ -6,6 +6,7 @@ theme, and launches the MainWindow.
 """
 
 import logging
+import signal
 import sys
 from logging.handlers import RotatingFileHandler
 
@@ -54,6 +55,19 @@ def main() -> None:
     # Create and show main window
     window = MainWindow(config_store, encryption_service)
     window.show()
+
+    # Handle CTRL+C gracefully — close SSH session and exit
+    def sigint_handler(*args):
+        logger.info("CTRL+C received, shutting down...")
+        window.close()
+
+    signal.signal(signal.SIGINT, sigint_handler)
+
+    # Allow Python to process signals (CTRL+C) while Qt event loop runs
+    from PySide6.QtCore import QTimer
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)
+    timer.start(500)
 
     logger.info("Main window displayed")
     exit_code = app.exec()

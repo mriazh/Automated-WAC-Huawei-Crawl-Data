@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QThreadPool, Signal
 from PySide6.QtGui import QBrush, QColor, QIntValidator, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
+    QCompleter,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -36,6 +37,16 @@ class ClickableLabel(QLabel):
     def mousePressEvent(self, event) -> None:
         self.clicked.emit()
         super().mousePressEvent(event)
+
+
+class AutoCompleteLineEdit(QLineEdit):
+    """QLineEdit that shows completer popup on focus."""
+
+    def focusInEvent(self, event) -> None:
+        super().focusInEvent(event)
+        if self.completer() and self.completer().model().rowCount() > 0:
+            self.completer().setCompletionPrefix(self.text())
+            self.completer().complete()
 
 
 class StyledCheckBox(QWidget):
@@ -139,10 +150,15 @@ class LoginPage(QWidget):
 
         self._setup_ui()
         self._load_saved_credentials()
+        self._setup_completers()
 
         # Set initial checkbox theme from config
         config = self._config_store.load()
         self._remember_checkbox.set_theme(config.theme)
+
+        # Prevent auto-focus on host input when page loads
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFocus()
 
     @property
     def connected_host(self) -> str:
@@ -181,7 +197,7 @@ class LoginPage(QWidget):
         fields_layout = QFormLayout()
         fields_layout.setSpacing(10)
 
-        self._host_input = QLineEdit()
+        self._host_input = AutoCompleteLineEdit()
         self._host_input.setPlaceholderText("e.g. 192.168.1.1")
         fields_layout.addRow("Host:", self._host_input)
 
@@ -190,7 +206,7 @@ class LoginPage(QWidget):
         self._port_input.setValidator(QIntValidator(1, 65535))
         fields_layout.addRow("Port:", self._port_input)
 
-        self._username_input = QLineEdit()
+        self._username_input = AutoCompleteLineEdit()
         self._username_input.setPlaceholderText("SSH username")
         fields_layout.addRow("Username:", self._username_input)
 
@@ -272,15 +288,23 @@ class LoginPage(QWidget):
             self._reveal_btn.setIcon(icon_eye_open())
 
     def _load_saved_credentials(self) -> None:
-        """Load and pre-fill credentials from ConfigStore if remember-me was enabled."""
+        """Load and pre-fill credentials from ConfigStore.
+
+        Only loads (pre-fills) fields if remember_me is enabled.
+        Otherwise fields stay empty — user types and gets autocomplete suggestions.
+        """
         config = self._config_store.load()
 
         if not config.remember_me:
             return
 
-        self._host_input.setText(config.host)
-        self._port_input.setText(config.port)
-        self._username_input.setText(config.username)
+        # Pre-fill all fields only when remember_me is active
+        if config.host:
+            self._host_input.setText(config.host)
+        if config.port:
+            self._port_input.setText(config.port)
+        if config.username:
+            self._username_input.setText(config.username)
 
         if config.encrypted_password:
             try:
@@ -289,14 +313,55 @@ class LoginPage(QWidget):
             except DecryptionError:
                 logger.warning("Failed to decrypt stored password. Clearing credentials.")
                 self._config_store.clear_credentials()
-                self._host_input.clear()
-                self._port_input.clear()
-                self._username_input.clear()
                 self._password_input.clear()
                 self._remember_checkbox.setChecked(False)
                 return
 
         self._remember_checkbox.setChecked(True)
+
+    def _setup_completers(self) -> None:
+        """Setup autocomplete dropdowns for host and username fields."""
+        config = self._config_store.load()
+
+        # Host completer
+        if config.host_history:
+            host_completer = QCompleter(config.host_history)
+            host_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            host_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            host_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            self._host_input.setCompleter(host_completer)
+
+        # Username completer
+        if config.username_history:
+            user_completer = QCompleter(config.username_history)
+            user_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            user_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            user_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            self._username_input.setCompleter(user_completer)
+
+    def try_auto_connect(self) -> None:
+        """Auto-connect if remember-me is enabled and all fields are filled.
+
+        Called by MainWindow after show(). Skips login page entirely if
+        saved credentials are valid and connection succeeds.
+        Falls back to login page on failure.
+        """
+        config = self._config_store.load()
+        if not config.remember_me:
+            return
+
+        # Check all fields are filled
+        host = self._host_input.text().strip()
+        port = self._port_input.text().strip()
+        username = self._username_input.text().strip()
+        password = self._password_input.text()
+
+        if not all([host, port, username, password]):
+            return
+
+        # Trigger auto-connect
+        logger.info("Auto-connect: remember_me enabled, attempting connection...")
+        self._on_connect_clicked()
 
     def _on_connect_clicked(self) -> None:
         """Handle Connect button click: validate fields then start verification."""
@@ -337,10 +402,33 @@ class LoginPage(QWidget):
         self._connected_port = self._port_input.text().strip()
         self._connected_username = self._username_input.text().strip()
 
+        # Always save host/port/username and add to history
+        config = self._config_store.load()
+        config.host = self._connected_host
+        config.port = self._connected_port
+        config.username = self._connected_username
+
+        # Add to history (deduplicate, max 10 entries)
+        if self._connected_host and self._connected_host not in config.host_history:
+            config.host_history.insert(0, self._connected_host)
+            config.host_history = config.host_history[:10]
+        if self._connected_username and self._connected_username not in config.username_history:
+            config.username_history.insert(0, self._connected_username)
+            config.username_history = config.username_history[:10]
+
         if self._remember_checkbox.isChecked():
-            self._save_credentials()
+            config.encrypted_password = self._encryption_service.encrypt(
+                self._password_input.text()
+            )
+            config.remember_me = True
         else:
-            self._clear_credentials()
+            config.encrypted_password = ""
+            config.remember_me = False
+
+        self._config_store.save(config)
+
+        # Refresh completers with updated history
+        self._setup_completers()
 
         self.login_success.emit(session)
 

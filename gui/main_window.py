@@ -62,8 +62,8 @@ class MainWindow(QMainWindow):
     def _setup_window(self) -> None:
         """Configure window title, size, and icon."""
         self.setWindowTitle("WAC Huawei LLDP Crawl Data")
-        self.setMinimumSize(500, 400)
-        self.resize(550, 450)
+        self.setMinimumSize(700, 650)
+        self.resize(700, 650)
 
         # Set window icon from assets/huawei.svg
         import os
@@ -106,6 +106,18 @@ class MainWindow(QMainWindow):
         )
         self._login_page.login_success.connect(self._on_login_success)
         self._stack.addWidget(self._login_page)
+
+    def showEvent(self, event) -> None:
+        """After window is shown, attempt auto-connect if remember-me is set."""
+        super().showEvent(event)
+
+        # Lock minimum size to current size after first show
+        if not hasattr(self, '_auto_connect_tried'):
+            self._auto_connect_tried = True
+            # Ensure window can't be resized smaller than initial size
+            self.setMinimumSize(self.size())
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(100, self._login_page.try_auto_connect)
 
     def _apply_stored_theme(self) -> None:
         """Apply the theme stored in ConfigStore before showing the window."""
@@ -165,7 +177,22 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentWidget(self._crawl_page)
 
     def _on_logout_requested(self) -> None:
-        """Handle logout: close SSH session, destroy CrawlPage, show LoginPage."""
+        """Handle logout: close SSH session, destroy CrawlPage, show LoginPage.
+
+        Disables auto-login but keeps host/port/username pre-filled (no password).
+        """
+        # Save host/port/username but clear password and remember_me
+        config = self._config_store.load()
+        config.remember_me = False
+        config.encrypted_password = ""
+        self._config_store.save(config)
+
+        # Update login page: uncheck remember-me, clear password field
+        if hasattr(self._login_page, '_remember_checkbox'):
+            self._login_page._remember_checkbox.setChecked(False)
+        if hasattr(self._login_page, '_password_input'):
+            self._login_page._password_input.clear()
+
         # Close SSH session
         self._disconnect_session()
 

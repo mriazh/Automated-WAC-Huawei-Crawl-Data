@@ -98,8 +98,8 @@ class CrawlPage(QWidget):
         status_layout.addWidget(self._status_label)
         status_layout.addStretch()
 
-        self._logout_btn = QPushButton("Logout")
-        self._logout_btn.setFixedWidth(80)
+        self._logout_btn = QPushButton("Disconnect")
+        self._logout_btn.setFixedWidth(100)
         self._logout_btn.clicked.connect(self._on_logout)
         status_layout.addWidget(self._logout_btn)
         layout.addLayout(status_layout)
@@ -109,9 +109,14 @@ class CrawlPage(QWidget):
         file_section_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(file_section_label)
 
+        # Fixed label width for alignment
+        _LABEL_WIDTH = 80
+
         # AP List
         ap_layout = QHBoxLayout()
-        ap_layout.addWidget(QLabel("AP List:"))
+        ap_label = QLabel("AP List:")
+        ap_label.setFixedWidth(_LABEL_WIDTH)
+        ap_layout.addWidget(ap_label)
         self._ap_list_input = QLineEdit()
         self._ap_list_input.setReadOnly(True)
         self._ap_list_input.setPlaceholderText("Select AP list file (.txt)")
@@ -120,11 +125,24 @@ class CrawlPage(QWidget):
         self._ap_browse_btn.setFixedWidth(80)
         self._ap_browse_btn.clicked.connect(self._browse_ap_list)
         ap_layout.addWidget(self._ap_browse_btn)
+        self._ap_check_btn = QPushButton("Check")
+        self._ap_check_btn.setFixedWidth(70)
+        self._ap_check_btn.clicked.connect(self._check_ap_list)
+        ap_layout.addWidget(self._ap_check_btn)
         layout.addLayout(ap_layout)
+
+        # AP check result label
+        self._ap_info_label = QLabel("")
+        self._ap_info_label.setStyleSheet("font-size: 11px; padding-left: 80px;")
+        self._ap_info_label.setWordWrap(True)
+        self._ap_info_label.hide()
+        layout.addWidget(self._ap_info_label)
 
         # Switch List
         sw_layout = QHBoxLayout()
-        sw_layout.addWidget(QLabel("Switch List:"))
+        sw_label = QLabel("Switch List:")
+        sw_label.setFixedWidth(_LABEL_WIDTH)
+        sw_layout.addWidget(sw_label)
         self._switch_list_input = QLineEdit()
         self._switch_list_input.setReadOnly(True)
         self._switch_list_input.setPlaceholderText("Select switch list file (.txt)")
@@ -133,11 +151,24 @@ class CrawlPage(QWidget):
         self._switch_browse_btn.setFixedWidth(80)
         self._switch_browse_btn.clicked.connect(self._browse_switch_list)
         sw_layout.addWidget(self._switch_browse_btn)
+        self._switch_check_btn = QPushButton("Check")
+        self._switch_check_btn.setFixedWidth(70)
+        self._switch_check_btn.clicked.connect(self._check_switch_list)
+        sw_layout.addWidget(self._switch_check_btn)
         layout.addLayout(sw_layout)
 
-        # Output Directory
+        # Switch check result label
+        self._switch_info_label = QLabel("")
+        self._switch_info_label.setStyleSheet("font-size: 11px; padding-left: 80px;")
+        self._switch_info_label.setWordWrap(True)
+        self._switch_info_label.hide()
+        layout.addWidget(self._switch_info_label)
+
+        # Output Directory — add spacer to match width of Browse+Check rows
         out_layout = QHBoxLayout()
-        out_layout.addWidget(QLabel("Output Dir:"))
+        out_label = QLabel("Output Dir:")
+        out_label.setFixedWidth(_LABEL_WIDTH)
+        out_layout.addWidget(out_label)
         self._output_dir_input = QLineEdit()
         self._output_dir_input.setReadOnly(True)
         self._output_dir_input.setPlaceholderText("Select output directory")
@@ -146,6 +177,10 @@ class CrawlPage(QWidget):
         self._output_browse_btn.setFixedWidth(80)
         self._output_browse_btn.clicked.connect(self._browse_output_dir)
         out_layout.addWidget(self._output_browse_btn)
+        # Spacer to align with Browse+Check width above
+        out_spacer = QWidget()
+        out_spacer.setFixedWidth(70)
+        out_layout.addWidget(out_spacer)
         layout.addLayout(out_layout)
 
         # Error label for path validation
@@ -193,25 +228,30 @@ class CrawlPage(QWidget):
 
         self._log_list = QListWidget()
         self._log_list.setMinimumHeight(200)
+        self._log_list.setSpacing(0)
+        self._log_list.setUniformItemSizes(True)
+        self._log_list.setStyleSheet("QListWidget::item { margin: 0px; padding: 1px 4px; }")
         layout.addWidget(self._log_list)
 
     def _apply_start_style(self) -> None:
-        """Apply green 'Start' button style."""
+        """Apply green 'Start' button style (works in both dark and light theme)."""
         self._start_stop_btn.setText("Start")
         self._start_stop_btn.setStyleSheet(
-            "QPushButton { background-color: #a6e3a1; color: #1e1e2e; "
+            "QPushButton { background-color: #40a02b; color: #ffffff; "
             "font-weight: bold; border-radius: 4px; }"
-            "QPushButton:hover { background-color: #b8ebc2; }"
+            "QPushButton:hover { background-color: #4db833; }"
+            "QPushButton:pressed { background-color: #368a24; }"
             "QPushButton:disabled { background-color: #45475a; color: #6c7086; }"
         )
 
     def _apply_stop_style(self) -> None:
-        """Apply red 'Stop' button style."""
+        """Apply red 'Stop' button style (works in both dark and light theme)."""
         self._start_stop_btn.setText("Stop")
         self._start_stop_btn.setStyleSheet(
-            "QPushButton { background-color: #f38ba8; color: #1e1e2e; "
+            "QPushButton { background-color: #d20f39; color: #ffffff; "
             "font-weight: bold; border-radius: 4px; }"
-            "QPushButton:hover { background-color: #f5a0b8; }"
+            "QPushButton:hover { background-color: #e0334f; }"
+            "QPushButton:pressed { background-color: #b30d30; }"
             "QPushButton:disabled { background-color: #45475a; color: #6c7086; }"
         )
 
@@ -242,6 +282,7 @@ class CrawlPage(QWidget):
         )
         if path:
             self._ap_list_input.setText(path)
+            self._ap_info_label.hide()
 
     def _browse_switch_list(self) -> None:
         """Open file dialog for switch list selection."""
@@ -250,12 +291,170 @@ class CrawlPage(QWidget):
         )
         if path:
             self._switch_list_input.setText(path)
+            self._switch_info_label.hide()
 
     def _browse_output_dir(self) -> None:
         """Open directory dialog for output directory selection."""
         path = QFileDialog.getExistingDirectory(self, "Select Output Directory")
         if path:
             self._output_dir_input.setText(path)
+
+    # --- Check file validation ---
+
+    def _check_ap_list(self) -> None:
+        """Validate AP list file format and show results."""
+        filepath = self._ap_list_input.text()
+        if not filepath:
+            self._ap_info_label.setText("⚠ No file selected")
+            self._ap_info_label.setStyleSheet(
+                "font-size: 11px; padding-left: 80px; color: #f9e2af;"
+            )
+            self._ap_info_label.show()
+            return
+
+        if not os.path.exists(filepath):
+            self._ap_info_label.setText("✗ File not found")
+            self._ap_info_label.setStyleSheet(
+                "font-size: 11px; padding-left: 80px; color: #f38ba8;"
+            )
+            self._ap_info_label.show()
+            return
+
+        valid_count = 0
+        offline_count = 0
+        malformed_lines = []
+
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                for line_num, line in enumerate(f, start=1):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+
+                    parts = stripped.split("\t")
+                    if len(parts) != 3:
+                        malformed_lines.append(
+                            f"Line {line_num}: expected 3 columns (Name\\tIP\\tID), got {len(parts)}"
+                        )
+                        continue
+
+                    # Check ID is a number
+                    try:
+                        int(parts[2].strip())
+                    except ValueError:
+                        malformed_lines.append(
+                            f"Line {line_num}: ID '{parts[2].strip()}' is not a number"
+                        )
+                        continue
+
+                    valid_count += 1
+                    if parts[1].strip() == "--":
+                        offline_count += 1
+
+        except Exception as e:
+            self._ap_info_label.setText(f"✗ Error reading file: {e}")
+            self._ap_info_label.setStyleSheet(
+                "font-size: 11px; padding-left: 80px; color: #f38ba8;"
+            )
+            self._ap_info_label.show()
+            return
+
+        # Build result message
+        online_count = valid_count - offline_count
+        if offline_count > 0:
+            parts_msg = [f"✓ {valid_count} APs detected ({online_count} online, {offline_count} offline — no IP)"]
+        else:
+            parts_msg = [f"✓ {valid_count} APs detected (all online)"]
+
+        if malformed_lines:
+            parts_msg.append(f"⚠ {len(malformed_lines)} lines skipped:")
+            # Show max 3 malformed lines
+            for ml in malformed_lines[:3]:
+                parts_msg.append(f"  • {ml}")
+            if len(malformed_lines) > 3:
+                parts_msg.append(f"  • ... and {len(malformed_lines) - 3} more")
+
+        result_text = "\n".join(parts_msg)
+
+        if malformed_lines:
+            color = "#f9e2af"  # yellow warning
+        else:
+            color = "#a6e3a1"  # green success
+
+        self._ap_info_label.setText(result_text)
+        self._ap_info_label.setStyleSheet(
+            f"font-size: 11px; padding-left: 80px; color: {color};"
+        )
+        self._ap_info_label.show()
+
+    def _check_switch_list(self) -> None:
+        """Validate switch list file format and show results."""
+        filepath = self._switch_list_input.text()
+        if not filepath:
+            self._switch_info_label.setText("⚠ No file selected")
+            self._switch_info_label.setStyleSheet(
+                "font-size: 11px; padding-left: 80px; color: #f9e2af;"
+            )
+            self._switch_info_label.show()
+            return
+
+        if not os.path.exists(filepath):
+            self._switch_info_label.setText("✗ File not found")
+            self._switch_info_label.setStyleSheet(
+                "font-size: 11px; padding-left: 80px; color: #f38ba8;"
+            )
+            self._switch_info_label.show()
+            return
+
+        valid_count = 0
+        malformed_lines = []
+
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                for line_num, line in enumerate(f, start=1):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+
+                    parts = stripped.split("\t")
+                    if len(parts) != 2:
+                        malformed_lines.append(
+                            f"Line {line_num}: expected 2 columns (Name\\tIP), got {len(parts)}"
+                        )
+                        continue
+
+                    valid_count += 1
+
+        except Exception as e:
+            self._switch_info_label.setText(f"✗ Error reading file: {e}")
+            self._switch_info_label.setStyleSheet(
+                "font-size: 11px; padding-left: 80px; color: #f38ba8;"
+            )
+            self._switch_info_label.show()
+            return
+
+        # Build result message
+        parts_msg = [f"✓ {valid_count} switches detected"]
+
+        if malformed_lines:
+            parts_msg.append(f"⚠ {len(malformed_lines)} lines skipped:")
+            for ml in malformed_lines[:3]:
+                parts_msg.append(f"  • {ml}")
+            if len(malformed_lines) > 3:
+                parts_msg.append(f"  • ... and {len(malformed_lines) - 3} more")
+
+        result_text = "\n".join(parts_msg)
+
+        if malformed_lines:
+            color = "#f9e2af"
+        else:
+            color = "#a6e3a1"
+
+        self._switch_info_label.setText(result_text)
+        self._switch_info_label.setStyleSheet(
+            f"font-size: 11px; padding-left: 80px; color: {color};"
+        )
+        self._switch_info_label.show()
 
     # --- Start/Stop logic ---
 
@@ -292,6 +491,7 @@ class CrawlPage(QWidget):
 
             # Read existing CSV for resume mode
             already_done = read_existing_csv(output_dir)
+            resumed_count = len(already_done)
 
             # Build config from session
             config = Config(
@@ -304,8 +504,21 @@ class CrawlPage(QWidget):
             # Save paths to config store on successful start
             self._save_paths()
 
-            # Reset UI state for new crawl
-            self._reset_crawl_state()
+            # Only reset UI if fresh start (no resume data and log is empty)
+            if resumed_count == 0 and self._log_list.count() == 0:
+                self._reset_crawl_state()
+            else:
+                # Resume: keep log, just reset results buffer for this run
+                self._results = []
+
+            # Set progress bar to reflect resumed state
+            total_aps = len(ap_list)
+            if total_aps > 0 and resumed_count > 0:
+                percentage = int((resumed_count / total_aps) * 100)
+                self._progress_bar.setValue(percentage)
+                self._progress_bar.setFormat(f"{resumed_count}/{total_aps} — {percentage}%")
+                # Add resume indicator to log
+                self._add_log_entry(f"— Resuming from {resumed_count}/{total_aps} —", "info")
 
             # Create and start worker
             self._worker = CrawlWorker(
@@ -315,7 +528,14 @@ class CrawlPage(QWidget):
                 config=config,
                 already_done=already_done,
             )
+            # Override worker's total to be full AP count minus resumed
+            # and set offset so numbering continues
+            self._worker._total = total_aps - resumed_count
+            self._worker._offset = resumed_count
+            self._worker._total_aps = total_aps
+
             self._worker.ap_progress.connect(self._on_ap_progress)
+            self._worker.result_ready.connect(self._on_result_ready)
             self._worker.crawl_finished.connect(self._on_crawl_finished)
             self._worker.crawl_error.connect(self._on_crawl_error)
             self._worker.start()
@@ -338,7 +558,7 @@ class CrawlPage(QWidget):
             self._start_stop_btn.setEnabled(True)
 
     def _stop_crawl(self) -> None:
-        """Request stop, save partial results."""
+        """Request stop and wait for worker to finish."""
         if self._worker is None:
             return
 
@@ -351,16 +571,14 @@ class CrawlPage(QWidget):
             self._worker.terminate()
             self._worker.wait(2000)
 
-        # Save partial results
-        self._save_partial_results()
-
     def _reset_crawl_state(self) -> None:
-        """Reset progress bar, counts, and log for a new crawl."""
+        """Reset progress bar, counts, and log for a new crawl (fresh start only)."""
         self._success_count = 0
         self._failed_count = 0
         self._skipped_count = 0
         self._results = []
         self._progress_bar.setValue(0)
+        self._progress_bar.setFormat("0%")
         self._success_label.setText("Success: 0")
         self._failed_label.setText("Failed: 0")
         self._skipped_label.setText("Skipped: 0")
@@ -378,12 +596,13 @@ class CrawlPage(QWidget):
 
     # --- Worker signal handlers ---
 
-    def _on_ap_progress(self, ap_name: str, status: str, current: int, total: int) -> None:
+    def _on_ap_progress(self, ap_name: str, status: str, detail: str, current: int, total: int) -> None:
         """Handle progress signal from CrawlWorker."""
         # Update progress bar
         if total > 0:
             percentage = int((current / total) * 100)
             self._progress_bar.setValue(percentage)
+            self._progress_bar.setFormat(f"{current}/{total} — {percentage}%")
 
         # Update counts
         if status == "success":
@@ -396,21 +615,19 @@ class CrawlPage(QWidget):
             self._skipped_count += 1
             self._skipped_label.setText(f"Skipped: {self._skipped_count}")
 
-        # Add log entry with color
-        self._add_log_entry(ap_name, status)
+        # Add detailed log entry with color
+        if status == "success":
+            log_text = f"[{current}/{total}] {ap_name} → {detail}"
+        elif status == "skipped":
+            log_text = f"[{current}/{total}] {ap_name} — {detail}"
+        else:
+            log_text = f"[{current}/{total}] {ap_name} — {detail}"
 
-        # Store result for partial save
-        from crawler import CrawlResult
+        self._add_log_entry(log_text, status)
 
-        self._results.append(
-            CrawlResult(
-                ap_name=ap_name,
-                ap_ip="",
-                switch_name="",
-                switch_ip="",
-                status=status,
-            )
-        )
+    def _on_result_ready(self, result: object) -> None:
+        """Store full CrawlResult for CSV saving."""
+        self._results.append(result)
 
     def _on_crawl_finished(self, reason: str) -> None:
         """Handle crawl completion signal."""
@@ -419,13 +636,16 @@ class CrawlPage(QWidget):
         self._start_stop_btn.setEnabled(True)
         self._logout_btn.setEnabled(True)
 
+        # Save results to CSV
+        self._save_partial_results()
+
         # Add completion message to log
         if reason == "completed":
             self._add_log_entry("Crawl completed successfully", "info")
         elif reason == "stopped":
-            self._add_log_entry("Crawl stopped by user", "info")
+            self._add_log_entry("Crawl stopped by user — progress saved", "info")
         elif reason == "connection_lost":
-            self._add_log_entry("Connection lost during crawl", "failed")
+            self._add_log_entry("Connection lost during crawl — progress saved", "failed")
 
         self._worker = None
 

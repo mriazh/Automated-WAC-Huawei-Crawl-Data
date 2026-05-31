@@ -82,7 +82,7 @@ QListWidget {
 }
 
 QListWidget::item {
-    padding: 4px;
+    padding: 0px;
 }
 
 QListWidget::item:selected {
@@ -188,7 +188,7 @@ QListWidget {
 }
 
 QListWidget::item {
-    padding: 4px;
+    padding: 0px;
 }
 
 QListWidget::item:selected {

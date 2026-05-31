@@ -51,10 +51,11 @@ def crawl_all_aps(
     already_done: set[str] | None = None,
     progress_callback: Callable[[CrawlResult], None] | None = None,
     stop_check: Callable[[], bool] | None = None,
+    use_tqdm: bool = True,
 ) -> list[CrawlResult]:
     """Iterate through all APs, crawl LLDP data, return results.
 
-    Uses tqdm progress bar (if available) with colorful status output.
+    Uses tqdm progress bar (if available and use_tqdm=True) with colorful status output.
     Skips offline APs and already-completed APs (resume mode).
     Auto-reconnects SSH if connection drops.
     Returns partial results on KeyboardInterrupt or when stop_check returns True.
@@ -62,6 +63,7 @@ def crawl_all_aps(
     Args:
         progress_callback: If provided, called after each AP result with the CrawlResult.
         stop_check: If provided and returns True, breaks the loop early (controlled stop).
+        use_tqdm: If False, suppresses all console output (for GUI mode).
     """
     results: list[CrawlResult] = []
     total = len(ap_list)
@@ -74,7 +76,7 @@ def crawl_all_aps(
     fail_count = 0
 
     pbar = None
-    if tqdm is not None:
+    if tqdm is not None and use_tqdm:
         pbar = tqdm(
             total=len(to_process),
             bar_format="{desc} {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",

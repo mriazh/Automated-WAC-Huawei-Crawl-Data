@@ -24,7 +24,8 @@ class CrawlWorker(QThread):
     """
 
     # Signals
-    ap_progress = Signal(str, str, int, int)  # ap_name, status, current, total
+    ap_progress = Signal(str, str, str, int, int)  # ap_name, status, detail, current, total
+    result_ready = Signal(object)  # CrawlResult object for saving
     crawl_finished = Signal(str)  # "completed" | "stopped" | "connection_lost"
     crawl_error = Signal(str)  # error description
 
@@ -54,6 +55,8 @@ class CrawlWorker(QThread):
         self._stop_event = threading.Event()
         self._current_count = 0
         self._total = len([ap for ap in ap_list if ap.name not in already_done])
+        self._offset = 0  # Set by crawl_page for resume numbering
+        self._total_aps = len(ap_list)  # Full AP count for display
 
     def run(self) -> None:
         """Execute crawl_all_aps with progress callback and stop check."""
@@ -66,6 +69,7 @@ class CrawlWorker(QThread):
                 self._already_done,
                 progress_callback=self._on_result,
                 stop_check=self._should_stop,
+                use_tqdm=False,
             )
 
             if self._should_stop():
@@ -87,14 +91,32 @@ class CrawlWorker(QThread):
         """Progress callback invoked by crawl_all_aps for each AP result.
 
         Increments the internal counter and emits ap_progress signal.
+        Uses offset for correct numbering in resume mode.
         """
         self._current_count += 1
+
+        # Build detail string for live log
+        if result.status == "success":
+            detail = result.switch_name if result.switch_name != "N/A" else "No neighbor"
+        elif result.status == "skipped":
+            detail = "offline — no IP"
+        else:
+            detail = result.error[:80] if result.error else "unknown error"
+
+        # current = offset + current_count (e.g., resumed 4, now at 1 → show 5)
+        # total = total_aps (always full count, e.g., 451)
+        display_current = self._offset + self._current_count
+        display_total = self._total_aps
+
         self.ap_progress.emit(
             result.ap_name,
             result.status,
-            self._current_count,
-            self._total,
+            detail,
+            display_current,
+            display_total,
         )
+        # Emit full result for CSV saving
+        self.result_ready.emit(result)
 
     def _should_stop(self) -> bool:
         """Check if stop has been requested (called between AP iterations)."""
