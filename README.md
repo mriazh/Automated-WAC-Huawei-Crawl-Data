@@ -11,20 +11,6 @@ GUI tool to collect LLDP neighbor data from Access Points (APs) managed by a Hua
 5. Maps each neighbor device name to its IP address from the switch list
 6. Outputs results to a CSV file
 
-## Screenshots
-
-### Login Page
-- SSH connection verification (host, port, username, password)
-- Remember me with encrypted credential storage
-- Autocomplete suggestions for host and username
-- Smart error messages (host/port vs credentials)
-
-### Crawl Page
-- File input with Browse + Check validation
-- Start/Stop with resume support
-- Live log with color-coded entries
-- Progress bar with current/total count
-
 ## Output
 
 CSV file (`lldp_result.csv`) with the following format:
@@ -38,36 +24,48 @@ CSV file (`lldp_result.csv`) with the following format:
 
 > APs with multiple LLDP neighbors will have multiple rows in the CSV (one per neighbor).
 
-## Prerequisites
-
-- **Python 3.10 or higher** — [Download here](https://www.python.org/downloads/)
-- **SSH access** to the Huawei WAC (IP, port, username, password)
-- **VPN connection** (if the WAC is on an internal network)
+---
 
 ## Installation
 
-### Step 1: Download the project
+Choose one of the two options below:
 
-```bash
-git clone https://github.com/mriazh/Automated-WAC-Huawei-Crawl-Data.git
-cd Automated-WAC-Huawei-Crawl-Data
-```
+### Option A: Download EXE (no Python needed)
 
-Or download as ZIP from GitHub and extract it.
+1. Go to [Releases](https://github.com/mriazh/Automated-WAC-Huawei-Crawl-Data/releases)
+2. Download `WAC-Crawl.zip` from the latest release
+3. Extract the ZIP to any folder
+4. Inside you'll find:
+   - `WAC-Crawl.exe` — the application
+   - `list_ap.txt` — AP list template (edit this)
+   - `list_switch.txt` — switch list template (edit this)
 
-### Step 2: Install Python dependencies
+### Option B: Run from Python source
 
-```bash
-pip install -r requirements.txt
-```
+1. Install [Python 3.10+](https://www.python.org/downloads/)
+2. Clone or download this repository:
+   ```bash
+   git clone https://github.com/mriazh/Automated-WAC-Huawei-Crawl-Data.git
+   cd Automated-WAC-Huawei-Crawl-Data
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Run:
+   ```bash
+   python main.py
+   ```
 
-### Step 3: Prepare input files
+---
 
-You need 2 input files (select them in the GUI via Browse):
+## Setup — Edit Input Files (REQUIRED)
 
-#### AP List (`list_ap.txt`)
+Before using the tool, you **must** edit the input files with your own data.
 
-Tab-separated, one AP per line:
+### Step 1: Edit `list_ap.txt`
+
+This file contains your AP data. Format is **tab-separated**, one AP per line:
 
 ```
 AP-Name<TAB>IP-Address<TAB>ID
@@ -80,11 +78,13 @@ AP-BUILDING2-L1-OUT01	10.0.1.11	1
 AP-OFFLINE-01	--	2
 ```
 
-> Use `--` as IP for offline/unreachable APs (they will be skipped).
+> - Use `--` as IP for offline/unreachable APs (they will be skipped)
+> - The ID is the AP ID in the WAC (used for `stelnet ap ap-id {ID}`)
+> - You can get this data from WAC command: `display ap all`
 
-#### Switch List (`list_switch.txt`)
+### Step 2: Edit `list_switch.txt`
 
-Tab-separated:
+This file maps switch names to their IP addresses. Format is **tab-separated**:
 
 ```
 Switch-Name<TAB>IP-Address
@@ -94,37 +94,49 @@ Example:
 ```
 SW-BLDG-A-L2	198.51.100.10
 SW-BLDG-B-L1	198.51.100.20
+ASW01-CORE	198.51.100.1
 ```
 
-> Used to map neighbor device names to their IP addresses in the output.
+> This is used to resolve neighbor device names to IP addresses in the output CSV.
+> If a neighbor name is not in this list, it will show as `N/A` for the IP.
+
+---
 
 ## Usage
 
-### Run the GUI
+### 1. Login
 
-```bash
-python main.py
-```
+1. Open the application (`WAC-Crawl.exe` or `python main.py`)
+2. Enter your WAC SSH credentials:
+   - **Host** — WAC IP address (e.g., `172.16.24.3`)
+   - **Port** — SSH port (default `22`)
+   - **Username** — SSH username
+   - **Password** — SSH password
+3. Click **Connect** (or press Enter)
+4. The tool verifies the SSH connection before proceeding
+5. Check **Remember me** to auto-login next time you open the app
 
-### Login
+### 2. Select Files
 
-1. Enter WAC host, port (default 22), username, and password
-2. Click **Connect** (or press Enter)
-3. The tool verifies SSH connection before proceeding
-4. Check **Remember me** to auto-login next time
+1. Click **Browse** next to "AP List" → select your `list_ap.txt`
+2. Click **Browse** next to "Switch List" → select your `list_switch.txt`
+3. Click **Browse** next to "Output Dir" → select where to save the CSV
+4. (Optional) Click **Check** to validate file format and see AP/switch count
 
-### Crawl
+### 3. Crawl
 
-1. Select AP list, switch list, and output directory via **Browse**
-2. Click **Check** to validate file format and see AP/switch count
-3. Click **Start** to begin crawling
-4. Live log shows progress with color-coded results
-5. Click **Stop** to pause — progress is saved automatically
-6. Click **Start** again to resume from where you left off
+1. Click **Start** to begin crawling
+2. Watch the live log for progress (color-coded: green = success, red = failed, yellow = skipped)
+3. Click **Stop** to pause — progress is saved automatically
+4. Click **Start** again to resume from where you left off
 
-### Resume after interruption
+### 4. Results
 
-If the tool stops mid-crawl (Stop, close window, VPN drop), just start again. It reads the existing `lldp_result.csv` and skips APs already crawled.
+- Output CSV is saved to your selected output directory as `lldp_result.csv`
+- Summary shows multi-neighbor (double) APs at the end of each crawl
+- Detailed log is saved to `crawl.log` in the application folder
+
+---
 
 ## Features
 
@@ -141,7 +153,30 @@ If the tool stops mid-crawl (Stop, close window, VPN drop), just start again. It
 | Graceful shutdown | Saves partial results on Stop, close, or Ctrl+C |
 | Detailed logging | Full debug log in `crawl.log` |
 
-## Build Executable
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `Host/port not reachable` | Check VPN is active and WAC IP/port is correct |
+| `Invalid username or password` | Host is reachable — check credentials |
+| `Not an SSH server` | Port is open but not SSH — check port number |
+| `Not a WAC device` | SSH login OK but device is not a WAC |
+| AP shows `FAILED: Timeout` | AP may be behind NAT — takes longer to connect |
+| AP shows `Login failed` | AP is offline or unreachable from WAC |
+
+---
+
+## Prerequisites
+
+- **SSH access** to the Huawei WAC (IP, port, username, password)
+- **VPN connection** (if the WAC is on an internal network)
+- **Python 3.10+** (only if running from source)
+
+---
+
+## Build Executable (for developers)
 
 ```bash
 pip install pyinstaller
@@ -149,6 +184,8 @@ pyinstaller build/build.spec --distpath dist --workpath build/temp
 ```
 
 Output: `dist/WAC-Crawl/WAC-Crawl.exe`
+
+---
 
 ## Project Structure
 
@@ -175,37 +212,19 @@ Output: `dist/WAC-Crawl/WAC-Crawl.exe`
 │   ├── build.spec       # PyInstaller spec
 │   └── installer.iss    # Inno Setup installer script
 ├── tests/               # Unit & property-based tests
-├── .env.example         # Credentials template
 ├── list_ap-example.txt  # AP list template
 ├── list_switch-example.txt  # Switch list template
 └── requirements.txt     # Python dependencies
 ```
 
-## Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `Host/port not reachable` | Check VPN is active and WAC IP/port is correct |
-| `Invalid username or password` | Host is reachable — check credentials |
-| `Not an SSH server` | Port is open but not SSH — check port number |
-| `Not a WAC device` | SSH login OK but device is not a WAC |
-| AP shows `FAILED: Timeout` | AP may be behind NAT — takes longer to connect |
-| AP shows `Login failed` | AP is offline or unreachable from WAC |
+---
 
 ## Security
 
 - Credentials encrypted with Fernet (stored in `%APPDATA%/WAC-Crawl/`)
-- `.env`, `list_ap.txt`, `list_switch.txt` excluded from git
+- Input files (`list_ap.txt`, `list_switch.txt`) contain internal IPs — keep them private
 - The tool only runs **read-only** commands (`display`) — no configuration is modified
 - SSH host keys are auto-accepted (standard for internal network automation)
-
-## Requirements
-
-- Python 3.10+
-- PySide6 >= 6.5.0
-- paramiko >= 3.4.0
-- cryptography >= 41.0.0
-- python-dotenv >= 1.0.0
 
 ## License
 
