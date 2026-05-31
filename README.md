@@ -1,15 +1,29 @@
 # Automated WAC Huawei Crawl Data
 
-Automated tool to collect LLDP neighbor data from Access Points (APs) managed by a Huawei WLAN Access Controller (WAC) via SSH.
+GUI tool to collect LLDP neighbor data from Access Points (APs) managed by a Huawei WLAN Access Controller (WAC) via SSH.
 
 ## What does this tool do?
 
-1. Connects to the WAC via SSH
+1. Connects to the WAC via SSH (with login verification)
 2. Connects to each AP via `stelnet ap ap-id {ID}`
 3. Runs `display lldp neighbor brief` on each AP
 4. Extracts **all** "Neighbor Dev" entries (the devices connected to the AP)
 5. Maps each neighbor device name to its IP address from the switch list
 6. Outputs results to a CSV file
+
+## Screenshots
+
+### Login Page
+- SSH connection verification (host, port, username, password)
+- Remember me with encrypted credential storage
+- Autocomplete suggestions for host and username
+- Smart error messages (host/port vs credentials)
+
+### Crawl Page
+- File input with Browse + Check validation
+- Start/Stop with resume support
+- Live log with color-coded entries
+- Progress bar with current/total count
 
 ## Output
 
@@ -19,7 +33,6 @@ CSV file (`lldp_result.csv`) with the following format:
 "AP","Switch"
 "AP-BLDG-A-L1-IN01 (192.0.2.10)","SW-BLDG-A-L2 (198.51.100.10)"
 "AP-BLDG-B-L1-IN22 (192.0.2.11)","AP-BLDG-B-L1-IN07 (N/A)"
-"AP-BLDG-B-L1-IN22 (192.0.2.11)","AP-BLDG-B-L1-IN14 (N/A)"
 "AP-BLDG-B-L1-IN22 (192.0.2.11)","SW-BLDG-B-L1 (198.51.100.20)"
 ```
 
@@ -44,48 +57,17 @@ Or download as ZIP from GitHub and extract it.
 
 ### Step 2: Install Python dependencies
 
-Open a terminal/command prompt in the project folder and run:
-
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 3: Set up configuration files
+### Step 3: Prepare input files
 
-You need to create 3 files. Templates are provided — just copy and fill them in.
+You need 2 input files (select them in the GUI via Browse):
 
-#### 3a. Credentials (`.env`)
+#### AP List (`list_ap.txt`)
 
-```bash
-copy .env.example .env
-```
-
-Open `.env` in a text editor and fill in your WAC connection details:
-
-```env
-HOST=192.168.x.x
-PORT=22
-USERNAME=your-username
-PASSWORD=your-password
-```
-
-Optional timeout settings (in seconds):
-
-```env
-SSH_TIMEOUT=30
-AP_CONNECT_TIMEOUT=30
-COMMAND_TIMEOUT=15
-```
-
-> Increase `AP_CONNECT_TIMEOUT` to 60 if you have APs behind NAT.
-
-#### 3b. AP List (`list_ap.txt`)
-
-```bash
-copy list_ap-example.txt list_ap.txt
-```
-
-Open `list_ap.txt` and fill with your AP data. Format is **tab-separated**, one AP per line:
+Tab-separated, one AP per line:
 
 ```
 AP-Name<TAB>IP-Address<TAB>ID
@@ -100,13 +82,9 @@ AP-OFFLINE-01	--	2
 
 > Use `--` as IP for offline/unreachable APs (they will be skipped).
 
-#### 3c. Switch List (`list_switch.txt`)
+#### Switch List (`list_switch.txt`)
 
-```bash
-copy list_switch-example.txt list_switch.txt
-```
-
-Open `list_switch.txt` and fill with your switch data. Format is **tab-separated**:
+Tab-separated:
 
 ```
 Switch-Name<TAB>IP-Address
@@ -118,176 +96,116 @@ SW-BLDG-A-L2	198.51.100.10
 SW-BLDG-B-L1	198.51.100.20
 ```
 
-> This is used to map neighbor device names to their IP addresses in the output.
+> Used to map neighbor device names to their IP addresses in the output.
 
 ## Usage
 
-### Run the tool
+### Run the GUI
 
 ```bash
 python main.py
 ```
 
-### What you'll see
+### Login
 
-```
-  Mode     : FRESH START (no previous results found)
-  Total APs: 451
+1. Enter WAC host, port (default 22), username, and password
+2. Click **Connect** (or press Enter)
+3. The tool verifies SSH connection before proceeding
+4. Check **Remember me** to auto-login next time
 
-Connected to WAC. Starting crawl...
+### Crawl
 
-[1/451] AP-BUILDING1-L1-IN01 -> ASW01-BUILDING1-L2
-[2/451] AP-BUILDING2-L1-OUT01 -> SW-BUILDING2-L1, AP-BUILDING2-L1-IN01
-[3/451] AP-OFFLINE-01 - SKIP (offline)
-...
-
---- Crawl Summary ---
-Total APs processed this run: 451
-Skipped (offline): 4
-Successful: 440
-Failed: 7
-Output file: .\lldp_result.csv
-```
+1. Select AP list, switch list, and output directory via **Browse**
+2. Click **Check** to validate file format and see AP/switch count
+3. Click **Start** to begin crawling
+4. Live log shows progress with color-coded results
+5. Click **Stop** to pause — progress is saved automatically
+6. Click **Start** again to resume from where you left off
 
 ### Resume after interruption
 
-If the tool stops mid-crawl (Ctrl+C, VPN drop, SSH timeout), just run it again:
-
-```bash
-python main.py
-```
-
-It will automatically detect the existing `lldp_result.csv` and skip APs that were already crawled:
-
-```
-  Mode     : RESUME (continuing previous crawl)
-  Done     : 149 APs already in lldp_result.csv
-  Remaining: 302 APs to crawl
-```
-
-### Start fresh
-
-To start over from scratch, delete the CSV file first:
-
-```bash
-del lldp_result.csv
-python main.py
-```
+If the tool stops mid-crawl (Stop, close window, VPN drop), just start again. It reads the existing `lldp_result.csv` and skips APs already crawled.
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| Multi-neighbor | Collects ALL LLDP neighbors per AP, not just the first |
+| PySide6 GUI | Dark/light theme toggle, no console needed |
+| SSH verification | Smart error messages for host/port vs credentials |
+| Remember me | Encrypted credential storage with auto-login |
+| Autocomplete | Host and username suggestions from history |
+| File validation | Check button shows AP/switch count and format errors |
+| Multi-neighbor | Collects ALL LLDP neighbors per AP |
 | Auto-reconnect | If SSH drops mid-crawl, reconnects and continues |
 | Resume mode | Skips already-crawled APs on re-run |
-| Ctrl+C safe | Saves partial results before exiting |
+| Graceful shutdown | Saves partial results on Stop, close, or Ctrl+C |
 | Detailed logging | Full debug log in `crawl.log` |
-| Clean console | One-line progress per AP |
 
-## Timeout Configuration
+## Build Executable
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SSH_TIMEOUT` | 30s | SSH connection timeout to WAC |
-| `AP_CONNECT_TIMEOUT` | 30s | Stelnet connection timeout per AP |
-| `COMMAND_TIMEOUT` | 15s | LLDP command execution timeout |
+```bash
+pip install pyinstaller
+pyinstaller build/build.spec --distpath dist --workpath build/temp
+```
 
-Set these in `.env`. Increase `AP_CONNECT_TIMEOUT` if you have APs behind NAT (they take longer to connect).
+Output: `dist/WAC-Crawl/WAC-Crawl.exe`
 
 ## Project Structure
 
 ```
-├── main.py              # Entry point — run this
-├── config.py            # Load & validate .env
+├── main.py              # GUI entry point
+├── config.py            # Load & validate config
 ├── parsers.py           # Parse AP list, switch list, LLDP output
 ├── ssh_client.py        # SSH connection & interactive shell
 ├── crawler.py           # Crawl orchestration per-AP
 ├── output.py            # CSV writer & summary
+├── gui/
+│   ├── main_window.py   # Main window with page navigation
+│   ├── login_page.py    # SSH login form with verification
+│   ├── crawl_page.py    # Crawl controls, progress, live log
+│   ├── workers.py       # Background threads (crawl, connect)
+│   ├── themes.py        # Dark/light QSS stylesheets + toggle
+│   ├── config_store.py  # JSON config persistence (%APPDATA%)
+│   ├── encryption.py    # Fernet encryption for stored passwords
+│   ├── validators.py    # Input field validation
+│   └── icons.py         # SVG icon helpers
+├── assets/
+│   └── huawei.svg       # App icon
+├── build/
+│   ├── build.spec       # PyInstaller spec
+│   └── installer.iss    # Inno Setup installer script
+├── tests/               # Unit & property-based tests
 ├── .env.example         # Credentials template
 ├── list_ap-example.txt  # AP list template
 ├── list_switch-example.txt  # Switch list template
-├── requirements.txt     # Python dependencies
-├── tests/               # Unit & property-based tests (122 tests)
-└── .gitignore           # Exclude sensitive files
+└── requirements.txt     # Python dependencies
 ```
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| `Unable to connect` | Check VPN is active and WAC IP is correct |
-| `Authentication failed` | Check username/password in `.env` |
-| `Socket is closed` after ~150 APs | WAC session limit — tool auto-reconnects |
-| AP shows `FAILED: Timeout` | AP may be behind NAT — increase `AP_CONNECT_TIMEOUT=60` in `.env` |
-| `Connection closed by remote host` | Normal for some APs — tool handles this gracefully |
+| `Host/port not reachable` | Check VPN is active and WAC IP/port is correct |
+| `Invalid username or password` | Host is reachable — check credentials |
+| `Not an SSH server` | Port is open but not SSH — check port number |
+| `Not a WAC device` | SSH login OK but device is not a WAC |
+| AP shows `FAILED: Timeout` | AP may be behind NAT — takes longer to connect |
+| AP shows `Login failed` | AP is offline or unreachable from WAC |
 
 ## Security
 
-- Credentials are stored in `.env` (excluded from git)
-- `list_ap.txt` and `list_switch.txt` contain internal IPs (excluded from git)
-- The tool only runs **read-only** commands (`display`) — no WAC/AP configuration is modified
+- Credentials encrypted with Fernet (stored in `%APPDATA%/WAC-Crawl/`)
+- `.env`, `list_ap.txt`, `list_switch.txt` excluded from git
+- The tool only runs **read-only** commands (`display`) — no configuration is modified
 - SSH host keys are auto-accepted (standard for internal network automation)
-
-## Development
-
-### Running Tests
-
-Run the full test suite:
-
-```bash
-pytest tests/ -v
-```
-
-Run only unit tests (fast, no randomized inputs):
-
-```bash
-pytest tests/test_config.py tests/test_parsers.py tests/test_crawler.py tests/test_output.py tests/test_ssh_client.py tests/test_integration_main.py -v
-```
-
-Run only property-based tests (uses [Hypothesis](https://hypothesis.readthedocs.io/) to generate random inputs):
-
-```bash
-pytest tests/test_property_*.py -v
-```
-
-Run a specific test file:
-
-```bash
-pytest tests/test_parsers.py -v
-```
-
-### Test Structure
-
-| File | What it tests |
-|------|---------------|
-| `test_config.py` | Config loading, validation, defaults |
-| `test_parsers.py` | AP list, switch list, LLDP output parsing |
-| `test_ssh_client.py` | SSH connect/disconnect, commands, prompts (mocked) |
-| `test_crawler.py` | Crawl logic, reconnect, exit session (mocked) |
-| `test_output.py` | CSV write/read, summary output |
-| `test_integration_main.py` | Full main() flow with mocked SSH |
-| `test_property_completeness.py` | Every AP produces exactly one result |
-| `test_property_exact_matching.py` | Switch lookup is case-sensitive, no fuzzy match |
-| `test_property_no_data_loss.py` | All successful results end up in CSV |
-| `test_property_order_preservation.py` | CSV row order matches input order |
-| `test_property_session_safety.py` | SSH disconnect is always called |
-
-### Dev Dependencies
-
-These are already in `requirements.txt`:
-
-```
-pytest >= 7.0.0
-hypothesis >= 6.0.0
-```
 
 ## Requirements
 
 - Python 3.10+
+- PySide6 >= 6.5.0
 - paramiko >= 3.4.0
+- cryptography >= 41.0.0
 - python-dotenv >= 1.0.0
-- SSH access to Huawei WAC
 
 ## License
 

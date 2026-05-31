@@ -10,3 +10,7 @@ list_switch.txt
 
 .pytest_cache/
 .hypothesis/
+
+# Build output
+dist/
+build/temp/
