@@ -7,7 +7,7 @@ GUI tool to collect LLDP neighbor data from Access Points (APs) managed by a Hua
 1. Connects to the WAC via SSH (with login verification)
 2. Connects to each AP via `stelnet ap ap-id {ID}`
 3. Runs `display lldp neighbor brief` on each AP
-4. Extracts **all** "Neighbor Dev" entries (the devices connected to the AP)
+4. Extracts all LLDP neighbor entries including Local Intf, Neighbor Dev, and Neighbor Intf
 5. Maps each neighbor device name to its IP address from the switch list
 6. Outputs results to a CSV file
 
@@ -16,10 +16,10 @@ GUI tool to collect LLDP neighbor data from Access Points (APs) managed by a Hua
 CSV file (`lldp_result.csv`) with the following format:
 
 ```csv
-"AP","Switch"
-"AP-BLDG-A-L1-IN01 (192.0.2.10)","SW-BLDG-A-L2 (198.51.100.10)"
-"AP-BLDG-B-L1-IN22 (192.0.2.11)","AP-BLDG-B-L1-IN07 (N/A)"
-"AP-BLDG-B-L1-IN22 (192.0.2.11)","SW-BLDG-B-L1 (198.51.100.20)"
+"AP","Local Intf","Switch","Neighbor Intf"
+"AP-BLDG-A-L1-IN01 (192.0.2.10)","GE0/0/0","SW-BLDG-A-L2 (198.51.100.10)","85"
+"AP-BLDG-B-L1-IN22 (192.0.2.11)","GE0/0/0","AP-BLDG-B-L1-IN07 (N/A)","GE0/0/0"
+"AP-BLDG-B-L1-IN22 (192.0.2.11)","GE0/0/0","SW-BLDG-B-L1 (198.51.100.20)","GE0/0/0"
 ```
 
 > APs with multiple LLDP neighbors will have multiple rows in the CSV (one per neighbor).
@@ -147,7 +147,7 @@ ASW01-CORE	198.51.100.1
 | Remember me | Encrypted credential storage with auto-login |
 | Autocomplete | Host and username suggestions from history |
 | File validation | Check button shows AP/switch count and format errors |
-| Multi-neighbor | Collects ALL LLDP neighbors per AP |
+| Multi-neighbor | Collects ALL LLDP neighbors per AP, including local and neighbor interfaces |
 | Auto-reconnect | If SSH drops mid-crawl, reconnects and continues |
 | Resume mode | Skips already-crawled APs on re-run |
 | Graceful shutdown | Saves partial results on Stop, close, or Ctrl+C |

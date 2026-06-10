@@ -107,8 +107,8 @@ def test_csv_row_count_equals_success_count(results: list[CrawlResult]):
             rows = list(reader)
 
         # First row is always the header
-        assert rows[0] == ["AP", "Switch"], (
-            f"Expected header ['AP', 'Switch'] but got {rows[0]}"
+        assert rows[0] == ["AP", "Local Intf", "Switch", "Neighbor Intf"], (
+            f"Expected new header but got {rows[0]}"
         )
 
         # Data rows are everything after the header
@@ -153,6 +153,12 @@ def test_all_success_results_appear_in_csv(results: list[CrawlResult]):
             assert data_rows[i][0] == expected_ap, (
                 f"Row {i} AP mismatch: expected '{expected_ap}', got '{data_rows[i][0]}'"
             )
-            assert data_rows[i][1] == expected_switch, (
-                f"Row {i} Switch mismatch: expected '{expected_switch}', got '{data_rows[i][1]}'"
+            assert data_rows[i][1] == result.local_intf, (
+                f"Row {i} Local Intf mismatch: expected '{result.local_intf}', got '{data_rows[i][1]}'"
+            )
+            assert data_rows[i][2] == expected_switch, (
+                f"Row {i} Switch mismatch: expected '{expected_switch}', got '{data_rows[i][2]}'"
+            )
+            assert data_rows[i][3] == result.neighbor_intf, (
+                f"Row {i} Neighbor Intf mismatch: expected '{result.neighbor_intf}', got '{data_rows[i][3]}'"
             )

@@ -21,6 +21,15 @@ class APEntry:
     is_offline: bool  # True when ip == "--"
 
 
+@dataclass
+class LLDPNeighbor:
+    """Represents an LLDP neighbor entry."""
+    
+    local_intf: str
+    neighbor_dev: str
+    neighbor_intf: str
+
+
 def parse_ap_list(filepath: str = "list_ap.txt") -> list[APEntry]:
     """Parse tab-separated AP list file.
 
@@ -112,7 +121,7 @@ def parse_switch_list(filepath: str = "list_switch.txt") -> dict[str, str]:
     return switch_dict
 
 
-def parse_lldp_output(output: str, ap_name: str = "") -> list[str]:
+def parse_lldp_output(output: str, ap_name: str = "") -> list[LLDPNeighbor]:
     """Extract ALL Neighbor Dev values from LLDP command output.
 
     Algorithm:
@@ -120,7 +129,7 @@ def parse_lldp_output(output: str, ap_name: str = "") -> list[str]:
     2. Determine column boundaries from header character positions
     3. Extract values from ALL data rows below header
 
-    Returns list of neighbor device names. Empty list if no valid data found.
+    Returns list of LLDPNeighbor objects. Empty list if no valid data found.
     Logs warning if header format is unrecognizable.
     """
     if not output or not output.strip():
@@ -145,7 +154,8 @@ def parse_lldp_output(output: str, ap_name: str = "") -> list[str]:
     header_line = lines[header_idx]
 
     # Verify header contains expected column names
-    if "Neighbor Intf" not in header_line:
+    # Verify header contains expected column names
+    if "Neighbor Intf" not in header_line or "Local Intf" not in header_line or "Exptime" not in header_line:
         logger.warning(
             "LLDP output for AP '%s' has unrecognizable header format",
             ap_name,
@@ -153,11 +163,13 @@ def parse_lldp_output(output: str, ap_name: str = "") -> list[str]:
         return []
 
     # Determine column boundaries from header character positions
-    col_start = header_line.index("Neighbor Dev")
-    col_end = header_line.index("Neighbor Intf")
+    local_start = header_line.index("Local Intf")
+    dev_start = header_line.index("Neighbor Dev")
+    intf_start = header_line.index("Neighbor Intf")
+    exptime_start = header_line.index("Exptime")
 
     # Extract ALL data rows after header
-    neighbors = []
+    neighbors: list[LLDPNeighbor] = []
     data_lines = lines[header_idx + 1:]
     for data_line in data_lines:
         stripped = data_line.strip()
@@ -167,11 +179,19 @@ def parse_lldp_output(output: str, ap_name: str = "") -> list[str]:
         if stripped.startswith("<") and stripped.endswith(">"):
             continue
 
-        # Extract the Neighbor Dev value using column boundaries
-        if len(data_line) > col_start:
-            raw_slice = data_line[col_start:col_end] if len(data_line) >= col_end else data_line[col_start:]
-            value = raw_slice.rstrip()
-            if value:
-                neighbors.append(value)
+        # Extract values using column boundaries
+        local_intf = data_line[local_start:dev_start].strip() if len(data_line) > local_start else ""
+        neighbor_dev = data_line[dev_start:intf_start].strip() if len(data_line) > dev_start else ""
+        neighbor_intf = data_line[intf_start:exptime_start].strip() if len(data_line) > intf_start else ""
+
+        if neighbor_dev:
+            neighbors.append(
+                LLDPNeighbor(
+                    local_intf=local_intf or "N/A",
+                    neighbor_dev=neighbor_dev,
+                    neighbor_intf=neighbor_intf or "N/A",
+                )
+            )
 
     return neighbors
+

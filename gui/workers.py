@@ -97,7 +97,10 @@ class CrawlWorker(QThread):
 
         # Build detail string for live log
         if result.status == "success":
-            detail = result.switch_name if result.switch_name != "N/A" else "No neighbor"
+            if result.switch_name != "N/A":
+                detail = f"{result.local_intf} -> {result.switch_name} ({result.neighbor_intf})"
+            else:
+                detail = "No neighbor"
         elif result.status == "skipped":
             detail = "offline — no IP"
         else:

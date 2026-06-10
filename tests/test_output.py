@@ -26,9 +26,9 @@ class TestWriteCsv:
         with open(filepath, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
             rows = list(reader)
-        assert rows[0] == ["AP", "Switch"]
-        assert rows[1] == ["AP-1 (10.0.0.1)", "SW-1 (10.0.1.1)"]
-        assert rows[2] == ["AP-2 (10.0.0.2)", "SW-2 (10.0.1.2)"]
+        assert rows[0] == ["AP", "Local Intf", "Switch", "Neighbor Intf"]
+        assert rows[1] == ["AP-1 (10.0.0.1)", "N/A", "SW-1 (10.0.1.1)", "N/A"]
+        assert rows[2] == ["AP-2 (10.0.0.2)", "N/A", "SW-2 (10.0.1.2)", "N/A"]
 
     def test_mixed_results_only_writes_success(self, tmp_path):
         """write_csv with mixed results: only success rows appear in CSV."""
@@ -45,9 +45,9 @@ class TestWriteCsv:
             rows = list(reader)
         # Header + 2 success rows only
         assert len(rows) == 3
-        assert rows[0] == ["AP", "Switch"]
-        assert rows[1] == ["AP-OK (10.0.0.1)", "SW-1 (10.0.1.1)"]
-        assert rows[2] == ["AP-OK2 (10.0.0.4)", "SW-2 (10.0.1.2)"]
+        assert rows[0] == ["AP", "Local Intf", "Switch", "Neighbor Intf"]
+        assert rows[1] == ["AP-OK (10.0.0.1)", "N/A", "SW-1 (10.0.1.1)", "N/A"]
+        assert rows[2] == ["AP-OK2 (10.0.0.4)", "N/A", "SW-2 (10.0.1.2)", "N/A"]
 
     def test_skips_failed_and_skipped(self, tmp_path):
         results = [
@@ -74,7 +74,7 @@ class TestWriteCsv:
             reader = csv.reader(f)
             rows = list(reader)
         assert len(rows) == 1
-        assert rows[0] == ["AP", "Switch"]
+        assert rows[0] == ["AP", "Local Intf", "Switch", "Neighbor Intf"]
 
     def test_empty_results_header_only(self, tmp_path):
         """write_csv with empty list generates header-only CSV."""
@@ -85,7 +85,7 @@ class TestWriteCsv:
             reader = csv.reader(f)
             rows = list(reader)
         assert len(rows) == 1
-        assert rows[0] == ["AP", "Switch"]
+        assert rows[0] == ["AP", "Local Intf", "Switch", "Neighbor Intf"]
 
     def test_csv_filename_matches_expected_pattern(self, tmp_path):
         """CSV filename is lldp_result.csv (static name, overwrite mode)."""
@@ -115,6 +115,30 @@ class TestWriteCsv:
         filepath = write_csv(results, output_dir=str(tmp_path))
         assert os.path.basename(filepath) == CSV_FILENAME
 
+    def test_append_mode_upgrades_old_two_column_csv(self, tmp_path):
+        csv_file = tmp_path / CSV_FILENAME
+        csv_file.write_text('"AP","Switch"\n"AP-OLD (10.0.0.1)","SW-OLD (10.0.1.1)"\n')
+
+        results = [
+            CrawlResult(
+                "AP-NEW",
+                "10.0.0.2",
+                "SW-NEW",
+                "10.0.1.2",
+                "success",
+                local_intf="GE0/0/0",
+                neighbor_intf="85",
+            )
+        ]
+
+        write_csv(results, output_dir=str(tmp_path), append_to_existing=True)
+
+        with open(csv_file, "r", encoding="utf-8") as f:
+            rows = list(csv.reader(f))
+
+        assert rows[0] == ["AP", "Local Intf", "Switch", "Neighbor Intf"]
+        assert rows[1] == ["AP-OLD (10.0.0.1)", "N/A", "SW-OLD (10.0.1.1)", "N/A"]
+        assert rows[2] == ["AP-NEW (10.0.0.2)", "GE0/0/0", "SW-NEW (10.0.1.2)", "85"]
 
 # ============================================================
 # read_existing_csv tests

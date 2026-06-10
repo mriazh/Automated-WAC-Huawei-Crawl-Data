@@ -86,7 +86,7 @@ def test_csv_row_order_matches_input_order(results: list[CrawlResult]):
             rows = list(reader)
 
         # Verify header
-        assert header == ["AP", "Switch"], f"Unexpected header: {header}"
+        assert header == ["AP", "Local Intf", "Switch", "Neighbor Intf"], f"Unexpected header: {header}"
 
         # Verify row count matches successful results
         successful = [r for r in results if r.status == "success"]
@@ -101,8 +101,14 @@ def test_csv_row_order_matches_input_order(results: list[CrawlResult]):
             assert row[0] == expected_ap, (
                 f"Row {i}: expected AP '{expected_ap}', got '{row[0]}'"
             )
-            assert row[1] == expected_switch, (
-                f"Row {i}: expected Switch '{expected_switch}', got '{row[1]}'"
+            assert row[1] == result.local_intf, (
+                f"Row {i}: expected Local Intf '{result.local_intf}', got '{row[1]}'"
+            )
+            assert row[2] == expected_switch, (
+                f"Row {i}: expected Switch '{expected_switch}', got '{row[2]}'"
+            )
+            assert row[3] == result.neighbor_intf, (
+                f"Row {i}: expected Neighbor Intf '{result.neighbor_intf}', got '{row[3]}'"
             )
 
 
@@ -163,8 +169,14 @@ def test_csv_preserves_order_among_successful_results(results: list[CrawlResult]
             assert row[0] == expected_ap, (
                 f"Row {i}: expected AP '{expected_ap}', got '{row[0]}'"
             )
-            assert row[1] == expected_switch, (
-                f"Row {i}: expected Switch '{expected_switch}', got '{row[1]}'"
+            assert row[1] == result.local_intf, (
+                f"Row {i}: expected Local Intf '{result.local_intf}', got '{row[1]}'"
+            )
+            assert row[2] == expected_switch, (
+                f"Row {i}: expected Switch '{expected_switch}', got '{row[2]}'"
+            )
+            assert row[3] == result.neighbor_intf, (
+                f"Row {i}: expected Neighbor Intf '{result.neighbor_intf}', got '{row[3]}'"
             )
 
 
@@ -196,7 +208,7 @@ def test_csv_sequential_append_preserves_order(results: list[CrawlResult]):
             header = next(reader)
             rows = list(reader)
 
-        assert header == ["AP", "Switch"]
+        assert header == ["AP", "Local Intf", "Switch", "Neighbor Intf"]
 
         # All results are successful, so total rows = first_half + second_half
         all_successful = first_half + second_half
@@ -211,6 +223,12 @@ def test_csv_sequential_append_preserves_order(results: list[CrawlResult]):
             assert row[0] == expected_ap, (
                 f"Row {i}: expected AP '{expected_ap}', got '{row[0]}'"
             )
-            assert row[1] == expected_switch, (
-                f"Row {i}: expected Switch '{expected_switch}', got '{row[1]}'"
+            assert row[1] == result.local_intf, (
+                f"Row {i}: expected Local Intf '{result.local_intf}', got '{row[1]}'"
+            )
+            assert row[2] == expected_switch, (
+                f"Row {i}: expected Switch '{expected_switch}', got '{row[2]}'"
+            )
+            assert row[3] == result.neighbor_intf, (
+                f"Row {i}: expected Neighbor Intf '{result.neighbor_intf}', got '{row[3]}'"
             )

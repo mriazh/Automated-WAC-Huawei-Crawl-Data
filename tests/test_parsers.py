@@ -6,7 +6,7 @@ import tempfile
 
 import pytest
 
-from parsers import APEntry, parse_ap_list, parse_lldp_output, parse_switch_list
+from parsers import APEntry, LLDPNeighbor, parse_ap_list, parse_lldp_output, parse_switch_list
 
 
 # ============================================================
@@ -121,14 +121,18 @@ class TestParseLldpOutput:
             "Local Intf         Neighbor Dev                     Neighbor Intf             Exptime\n"
             "GE0/0/0            SW-BLDG-A-L2                     85                        102\n"
         )
-        assert parse_lldp_output(output) == ["SW-BLDG-A-L2"]
+        assert parse_lldp_output(output) == [
+            LLDPNeighbor(local_intf="GE0/0/0", neighbor_dev="SW-BLDG-A-L2", neighbor_intf="85")
+        ]
 
     def test_switch_name_with_spaces(self):
         output = (
             "Local Intf         Neighbor Dev                     Neighbor Intf             Exptime\n"
             "GE0/0/0            CORE SWITCH MAIN                 85                        102\n"
         )
-        assert parse_lldp_output(output) == ["CORE SWITCH MAIN"]
+        assert parse_lldp_output(output) == [
+            LLDPNeighbor(local_intf="GE0/0/0", neighbor_dev="CORE SWITCH MAIN", neighbor_intf="85")
+        ]
 
     def test_empty_output(self):
         assert parse_lldp_output("") == []
@@ -156,7 +160,10 @@ class TestParseLldpOutput:
             "GE0/0/1            SWITCH-B                         2                         100\n"
         )
         result = parse_lldp_output(output)
-        assert result == ["SWITCH-A", "SWITCH-B"]
+        assert result == [
+            LLDPNeighbor(local_intf="GE0/0/0", neighbor_dev="SWITCH-A", neighbor_intf="1"),
+            LLDPNeighbor(local_intf="GE0/0/1", neighbor_dev="SWITCH-B", neighbor_intf="2"),
+        ]
 
     def test_with_ap_prompt_before_data(self):
         output = (
@@ -165,7 +172,9 @@ class TestParseLldpOutput:
             "GE0/0/0            SW-TEST-L1                       5                         120\n"
             "<AP-TEST>\n"
         )
-        assert parse_lldp_output(output, ap_name="AP-TEST") == ["SW-TEST-L1"]
+        assert parse_lldp_output(output, ap_name="AP-TEST") == [
+            LLDPNeighbor(local_intf="GE0/0/0", neighbor_dev="SW-TEST-L1", neighbor_intf="5")
+        ]
 
     def test_three_neighbors(self):
         output = (
@@ -175,4 +184,8 @@ class TestParseLldpOutput:
             "GE0/0/0            SW-BLDG-B-L1-CORE                178                       119\n"
         )
         result = parse_lldp_output(output)
-        assert result == ["AP-BLDG-B-L1-IN07", "AP-BLDG-B-L1-IN14", "SW-BLDG-B-L1-CORE"]
+        assert result == [
+            LLDPNeighbor(local_intf="GE0/0/0", neighbor_dev="AP-BLDG-B-L1-IN07", neighbor_intf="GE0/0/0"),
+            LLDPNeighbor(local_intf="GE0/0/0", neighbor_dev="AP-BLDG-B-L1-IN14", neighbor_intf="GE0/0/0"),
+            LLDPNeighbor(local_intf="GE0/0/0", neighbor_dev="SW-BLDG-B-L1-CORE", neighbor_intf="178"),
+        ]

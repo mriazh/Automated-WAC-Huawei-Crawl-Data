@@ -47,6 +47,31 @@ def read_existing_csv(output_dir: str = ".") -> set[str]:
     return done
 
 
+def _csv_has_new_header(filepath: str) -> bool:
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader, [])
+            return header == ["AP", "Local Intf", "Switch", "Neighbor Intf"]
+    except (OSError, csv.Error):
+        return False
+
+
+def _upgrade_csv_schema(filepath: str) -> None:
+    rows = []
+    with open(filepath, "r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        header = next(reader, [])
+        for row in reader:
+            if len(row) >= 2:
+                rows.append([row[0], "N/A", row[1], "N/A"])
+
+    with open(filepath, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        writer.writerow(["AP", "Local Intf", "Switch", "Neighbor Intf"])
+        writer.writerows(rows)
+
+
 def write_csv(results: list[CrawlResult], output_dir: str = ".",
               append_to_existing: bool = False) -> str:
     """Write results to CSV file.
@@ -55,8 +80,8 @@ def write_csv(results: list[CrawlResult], output_dir: str = ".",
     Otherwise overwrites the file.
 
     Filename: lldp_result.csv
-    Header: AP,Switch
-    Row format: "AP_Name (AP_IP)","Switch_Name (Switch_IP)"
+    Header: AP,Local Intf,Switch,Neighbor Intf
+    Row format: "AP_Name (AP_IP)","Local_Intf","Switch_Name (Switch_IP)","Neighbor_Intf"
 
     Only includes results with status 'success'.
     Returns the output filepath.
@@ -64,6 +89,8 @@ def write_csv(results: list[CrawlResult], output_dir: str = ".",
     filepath = os.path.join(output_dir, CSV_FILENAME)
 
     if append_to_existing and os.path.exists(filepath):
+        if not _csv_has_new_header(filepath):
+            _upgrade_csv_schema(filepath)
         # Append mode: add new results to existing file
         try:
             with open(filepath, "a", newline="", encoding="utf-8") as f:
@@ -72,7 +99,12 @@ def write_csv(results: list[CrawlResult], output_dir: str = ".",
                     if result.status == "success":
                         ap_col = f"{result.ap_name} ({result.ap_ip})"
                         switch_col = f"{result.switch_name} ({result.switch_ip})"
-                        writer.writerow([ap_col, switch_col])
+                        writer.writerow([
+                            ap_col,
+                            result.local_intf,
+                            switch_col,
+                            result.neighbor_intf,
+                        ])
         except OSError as e:
             print(f"Error: Failed to append to output file '{filepath}': {e}")
             raise
@@ -81,12 +113,17 @@ def write_csv(results: list[CrawlResult], output_dir: str = ".",
         try:
             with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-                writer.writerow(["AP", "Switch"])
+                writer.writerow(["AP", "Local Intf", "Switch", "Neighbor Intf"])
                 for result in results:
                     if result.status == "success":
                         ap_col = f"{result.ap_name} ({result.ap_ip})"
                         switch_col = f"{result.switch_name} ({result.switch_ip})"
-                        writer.writerow([ap_col, switch_col])
+                        writer.writerow([
+                            ap_col,
+                            result.local_intf,
+                            switch_col,
+                            result.neighbor_intf,
+                        ])
         except OSError as e:
             print(f"Error: Failed to write output file '{filepath}': {e}")
             raise

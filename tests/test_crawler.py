@@ -112,6 +112,8 @@ class TestCrawlSingleAp:
         assert results[0].status == "success"
         assert results[0].switch_name == "SW-TEST"
         assert results[0].switch_ip == "10.0.1.1"
+        assert results[0].local_intf == "GE0/0/0"
+        assert results[0].neighbor_intf == "1"
 
     def test_switch_not_in_dict(self):
         session = MagicMock()
@@ -183,7 +185,11 @@ class TestCrawlSingleAp:
 
         assert len(results) == 2
         assert results[0].switch_name == "SW-A"
+        assert results[0].local_intf == "GE0/0/0"
+        assert results[0].neighbor_intf == "1"
         assert results[1].switch_name == "SW-B"
+        assert results[1].local_intf == "GE0/0/0"
+        assert results[1].neighbor_intf == "2"
 
 
 # ============================================================

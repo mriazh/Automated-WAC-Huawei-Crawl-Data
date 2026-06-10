@@ -41,6 +41,8 @@ class CrawlResult:
     switch_ip: str  # "N/A" if not in switch list
     status: str  # "success", "skipped", "failed"
     error: str = ""  # error message if failed
+    local_intf: str = "N/A"
+    neighbor_intf: str = "N/A"
 
 
 def crawl_all_aps(
@@ -349,12 +351,14 @@ def crawl_single_ap(
         # Step 6: Build results for each neighbor
         results = []
         if neighbors:
-            for neighbor_name in neighbors:
-                switch_ip = switch_dict.get(neighbor_name, "N/A")
+            for neighbor in neighbors:
+                switch_ip = switch_dict.get(neighbor.neighbor_dev, "N/A")
                 results.append(CrawlResult(
                     ap_name=ap.name, ap_ip=ap.ip,
-                    switch_name=neighbor_name, switch_ip=switch_ip,
+                    switch_name=neighbor.neighbor_dev, switch_ip=switch_ip,
                     status="success",
+                    local_intf=neighbor.local_intf,
+                    neighbor_intf=neighbor.neighbor_intf,
                 ))
         else:
             results.append(CrawlResult(
