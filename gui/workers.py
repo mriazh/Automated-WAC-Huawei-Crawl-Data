@@ -57,6 +57,7 @@ class CrawlWorker(QThread):
         self._total = len([ap for ap in ap_list if ap.name not in already_done])
         self._offset = 0  # Set by crawl_page for resume numbering
         self._total_aps = len(ap_list)  # Full AP count for display
+        self._seen_progress_aps = set()
 
     def run(self) -> None:
         """Execute crawl_all_aps with progress callback and stop check."""
@@ -93,6 +94,13 @@ class CrawlWorker(QThread):
         Increments the internal counter and emits ap_progress signal.
         Uses offset for correct numbering in resume mode.
         """
+        # Emit full result for CSV saving
+        self.result_ready.emit(result)
+
+        if result.ap_name in self._seen_progress_aps:
+            return
+        self._seen_progress_aps.add(result.ap_name)
+
         self._current_count += 1
 
         # Build detail string for live log
@@ -118,8 +126,6 @@ class CrawlWorker(QThread):
             display_current,
             display_total,
         )
-        # Emit full result for CSV saving
-        self.result_ready.emit(result)
 
     def _should_stop(self) -> bool:
         """Check if stop has been requested (called between AP iterations)."""

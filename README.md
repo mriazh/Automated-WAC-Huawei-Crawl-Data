@@ -108,7 +108,7 @@ ASW01-CORE	198.51.100.1
 
 1. Open the application (`WAC-Crawl.exe` or `python main.py`)
 2. Enter your WAC SSH credentials:
-   - **Host** — WAC IP address (e.g., `172.16.24.3`)
+   - **Host** — WAC IP address (e.g., `192.0.2.10`)
    - **Port** — SSH port (default `22`)
    - **Username** — SSH username
    - **Password** — SSH password

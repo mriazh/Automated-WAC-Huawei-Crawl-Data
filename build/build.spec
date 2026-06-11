@@ -14,7 +14,9 @@ a = Analysis(
     [os.path.join(PROJECT_ROOT, 'main.py')],
     pathex=[PROJECT_ROOT],
     binaries=[],
-    datas=[],
+    datas=[
+        (os.path.join(PROJECT_ROOT, 'assets', 'huawei.svg'), 'assets'),
+    ],
     hiddenimports=[
         'gui',
         'gui.main_window',

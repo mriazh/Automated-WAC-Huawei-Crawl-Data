@@ -1,5 +1,5 @@
 # Format: Switch_Name<TAB>IP
 # Copy this file to list_switch.txt and fill with your actual switch data
 # Used for mapping LLDP neighbor device names to their IP addresses
-ASW01-EXAMPLE-L1	172.16.x.x
-SW-EXAMPLE-L1-2530	172.16.x.x
+ASW01-EXAMPLE-L1	192.0.2.x
+SW-EXAMPLE-L1-2530	192.0.2.x

@@ -491,6 +491,8 @@ class CrawlPage(QWidget):
 
             # Read existing CSV for resume mode
             already_done = read_existing_csv(output_dir)
+            current_ap_names = {ap.name for ap in ap_list}
+            already_done = already_done & current_ap_names
             resumed_count = len(already_done)
 
             # Build config from session

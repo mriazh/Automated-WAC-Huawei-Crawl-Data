@@ -1,6 +1,6 @@
 # Format: AP_Name<TAB>IP<TAB>ID
 # Copy this file to list_ap.txt and fill with your actual AP data
 # APs with "--" as IP will be marked as offline and skipped
-AP-EXAMPLE-L1-IN01	172.16.x.x	0
-AP-EXAMPLE-L1-IN02	172.16.x.x	1
+AP-EXAMPLE-L1-IN01	192.0.2.x	0
+AP-EXAMPLE-L1-IN02	192.0.2.x	1
 AP-EXAMPLE-L1-OUT01	--	2
