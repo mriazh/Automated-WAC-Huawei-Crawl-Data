@@ -54,7 +54,11 @@ class MainWindow(QMainWindow):
         self._session = None
         self._crawl_page: CrawlPage | None = None
 
+        from gui.update_checker import UpdateManager
+        self._update_manager = UpdateManager(self)
+
         self._setup_window()
+        self._setup_menubar()
         self._setup_toolbar()
         self._setup_pages()
         self._apply_stored_theme()
@@ -71,6 +75,37 @@ class MainWindow(QMainWindow):
         if os.path.exists(icon_path):
             from PySide6.QtGui import QIcon
             self.setWindowIcon(QIcon(icon_path))
+
+    def _setup_menubar(self) -> None:
+        """Create the Help menu."""
+        from PySide6.QtGui import QAction
+        import webbrowser
+        import app_info
+        from gui.about_dialog import show_about_dialog
+
+        menubar = self.menuBar()
+        help_menu = menubar.addMenu("Help")
+
+        # Check for Updates
+        check_update_action = QAction("Check for Updates", self)
+        check_update_action.triggered.connect(self._manual_check_updates)
+        help_menu.addAction(check_update_action)
+
+        # Open GitHub Releases
+        open_github_action = QAction("Open GitHub Releases", self)
+        open_github_action.triggered.connect(lambda: webbrowser.open(app_info.RELEASES_URL))
+        help_menu.addAction(open_github_action)
+
+        # About
+        about_action = QAction("About", self)
+        about_action.triggered.connect(lambda: show_about_dialog(self))
+        help_menu.addAction(about_action)
+
+    def _manual_check_updates(self) -> None:
+        self._update_manager.check_for_updates(is_manual=True)
+
+    def _check_updates_silently(self) -> None:
+        self._update_manager.check_for_updates(is_manual=False)
 
     def _setup_toolbar(self) -> None:
         """Create toolbar with ThemeToggle positioned at the top-right."""
@@ -118,6 +153,7 @@ class MainWindow(QMainWindow):
             self.setMinimumSize(self.size())
             from PySide6.QtCore import QTimer
             QTimer.singleShot(100, self._login_page.try_auto_connect)
+            QTimer.singleShot(1500, self._check_updates_silently)
 
     def _apply_stored_theme(self) -> None:
         """Apply the theme stored in ConfigStore before showing the window."""

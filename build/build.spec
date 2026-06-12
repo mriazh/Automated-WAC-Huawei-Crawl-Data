@@ -18,6 +18,7 @@ a = Analysis(
         (os.path.join(PROJECT_ROOT, 'assets', 'huawei.svg'), 'assets'),
     ],
     hiddenimports=[
+        'app_info',
         'gui',
         'gui.main_window',
         'gui.login_page',
@@ -27,6 +28,8 @@ a = Analysis(
         'gui.encryption',
         'gui.themes',
         'gui.validators',
+        'gui.about_dialog',
+        'gui.update_checker',
     ],
     hookspath=[],
     hooksconfig={},

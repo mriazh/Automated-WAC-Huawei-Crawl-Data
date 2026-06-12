@@ -176,6 +176,16 @@ ASW01-CORE	198.51.100.1
 
 ---
 
+## Updates
+
+- App checks GitHub Releases for updates on startup.
+- Manual check is available from Help → Check for Updates.
+- Updates download the Windows installer from GitHub Releases.
+- The app closes and launches the installer; the installer performs the update.
+- No Python or Git is required for users.
+
+---
+
 ## Build Executable (for developers)
 
 ```bash
