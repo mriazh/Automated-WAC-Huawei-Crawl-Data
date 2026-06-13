@@ -152,3 +152,34 @@ class TestUpdateDialogLogic:
         mock_start_download.assert_called_once_with(
             parent_mock, "https://example.com/installer.exe", "WAC-Crawl-Setup.exe"
         )
+
+    @patch("gui.update_checker.QMessageBox")
+    @patch("gui.update_checker._start_download")
+    def test_show_update_dialog_invalid_download_url(self, mock_start_download, mock_msgbox):
+        parent_mock = MagicMock()
+        release_data = {
+            "tag_name": "v2.0.0",
+            "body": "Notes",
+            "assets": [
+                {
+                    "name": "WAC-Crawl-Setup.exe",
+                    "browser_download_url": "http://example.com/installer.exe",
+                }
+            ],
+        }
+
+        # Setup mock message box
+        msg_instance = mock_msgbox.return_value
+
+        # We need to simulate the user clicking "Update Now"
+        update_btn_mock = MagicMock()
+        view_btn_mock = MagicMock()
+        later_btn_mock = MagicMock()
+
+        msg_instance.addButton.side_effect = [update_btn_mock, view_btn_mock, later_btn_mock]
+        msg_instance.clickedButton.return_value = update_btn_mock
+
+        show_update_dialog(parent_mock, release_data, is_manual=True)
+        # Assert warning was shown and download was not started
+        mock_msgbox.warning.assert_called_once_with(parent_mock, "Update Error", "Invalid installer download URL.")
+        mock_start_download.assert_not_called()

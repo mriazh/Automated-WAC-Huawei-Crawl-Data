@@ -163,7 +163,15 @@ def show_update_dialog(parent, release_data: dict, is_manual: bool):
     if msg.clickedButton() == view_btn:
         webbrowser.open(html_url)
     elif msg.clickedButton() == update_btn:
-        _start_download(parent, installer_asset["browser_download_url"], installer_asset["name"])
+        download_url = installer_asset.get("browser_download_url", "")
+        asset_name = installer_asset.get("name", "")
+        if not download_url.startswith("https://"):
+            QMessageBox.warning(parent, "Update Error", "Invalid installer download URL.")
+            return
+        if not (asset_name.startswith(app_info.INSTALLER_ASSET_PREFIX) and asset_name.endswith(app_info.INSTALLER_ASSET_SUFFIX)):
+            QMessageBox.warning(parent, "Update Error", "Invalid installer asset name.")
+            return
+        _start_download(parent, download_url, asset_name)
 
 
 def _start_download(parent, download_url: str, asset_name: str):
