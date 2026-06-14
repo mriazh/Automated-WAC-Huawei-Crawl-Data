@@ -112,6 +112,49 @@ QMainWindow {
 QFormLayout {
     background-color: transparent;
 }
+
+QMenu {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+}
+
+QMenu::item {
+    padding: 6px 24px;
+    background-color: transparent;
+}
+
+QMenu::item:selected {
+    background-color: #45475a;
+}
+
+QToolButton#menuButton {
+    background-color: transparent;
+    color: #cdd6f4;
+    border: none;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+QToolButton#menuButton:hover {
+    background-color: #313244;
+}
+
+QToolButton#menuButton:pressed {
+    background-color: #45475a;
+}
+
+QToolButton#menuButton::menu-indicator {
+    image: none;
+    width: 0px;
+    height: 0px;
+}
+
+QWidget#topBar {
+    background-color: #1e1e2e;
+}
 """
 
 LIGHT_STYLESHEET = """
@@ -217,6 +260,49 @@ QMainWindow {
 
 QFormLayout {
     background-color: transparent;
+}
+
+QMenu {
+    background-color: #f5f5f5;
+    color: #1e1e2e;
+    border: 1px solid #dcdcdc;
+    border-radius: 4px;
+}
+
+QMenu::item {
+    padding: 6px 24px;
+    background-color: transparent;
+}
+
+QMenu::item:selected {
+    background-color: #e0e0e0;
+}
+
+QToolButton#menuButton {
+    background-color: transparent;
+    color: #1e1e2e;
+    border: none;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+QToolButton#menuButton:hover {
+    background-color: #e0e0e0;
+}
+
+QToolButton#menuButton:pressed {
+    background-color: #dcdcdc;
+}
+
+QToolButton#menuButton::menu-indicator {
+    image: none;
+    width: 0px;
+    height: 0px;
+}
+
+QWidget#topBar {
+    background-color: #ffffff;
 }
 """
 

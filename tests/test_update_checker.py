@@ -30,6 +30,24 @@ class TestVersionParsing:
         assert is_newer_version("v1.0.0", "1.1.0") is False
 
 
+class TestMapNetworkError:
+    def test_map_timeout(self):
+        from gui.update_checker import map_network_error
+        assert "timed out" in map_network_error("urllib.error.URLError: <urlopen error timed out>")
+        assert "timed out" in map_network_error("timeout")
+
+    def test_map_unreachable(self):
+        from gui.update_checker import map_network_error
+        assert "Could not reach GitHub" in map_network_error("getaddrinfo failed")
+        assert "Could not reach GitHub" in map_network_error("Network is unreachable")
+        assert "Could not reach GitHub" in map_network_error("temporary failure in name resolution")
+
+    def test_map_other(self):
+        from gui.update_checker import map_network_error
+        assert map_network_error("HTTP 404") == "HTTP 404"
+        assert map_network_error("Some weird error") == "Some weird error"
+
+
 class TestUpdateCheckWorker:
     @patch("urllib.request.urlopen")
     def test_worker_emits_update_available(self, mock_urlopen):

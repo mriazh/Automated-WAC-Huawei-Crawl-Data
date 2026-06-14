@@ -36,6 +36,16 @@ def is_newer_version(latest_str: str, current_str: str) -> bool:
     return parse_version(latest_str) > parse_version(current_str)
 
 
+def map_network_error(err_msg: str) -> str:
+    """Map common network errors to user-friendly messages."""
+    err_lower = err_msg.lower()
+    if "timeout" in err_lower or "timed out" in err_lower:
+        return "Connection to GitHub timed out. Please check your internet connection and try again."
+    if "unreachable" in err_lower or "name resolution" in err_lower or "getaddrinfo" in err_lower:
+        return "Could not reach GitHub. Please check your internet connection."
+    return err_msg
+
+
 class UpdateCheckSignals(QObject):
     """Signals for update checking."""
 
@@ -47,32 +57,41 @@ class UpdateCheckSignals(QObject):
 class UpdateCheckWorker(QRunnable):
     """Worker to check for updates without blocking UI."""
 
-    def __init__(self):
+    def __init__(self, max_attempts: int = 1):
         super().__init__()
+        self.max_attempts = max_attempts
         self.signals = UpdateCheckSignals()
 
     def run(self):
         """Fetch latest release info from GitHub API."""
-        try:
-            req = urllib.request.Request(
-                app_info.LATEST_RELEASE_API,
-                headers={"User-Agent": "WAC-Huawei-Crawl-Updater"},
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                if response.status != 200:
-                    self.signals.error.emit(f"HTTP {response.status}")
-                    return
-                data = json.loads(response.read().decode("utf-8"))
+        last_error = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                logger.info("Checking GitHub API (attempt %d/%d): %s", attempt, self.max_attempts, app_info.LATEST_RELEASE_API)
+                req = urllib.request.Request(
+                    app_info.LATEST_RELEASE_API,
+                    headers={"User-Agent": "WAC-Huawei-Crawl-Updater"},
+                )
+                with urllib.request.urlopen(req, timeout=20) as response:
+                    if response.status != 200:
+                        logger.error("HTTP %s from GitHub API", response.status)
+                        last_error = f"HTTP {response.status}"
+                        continue
+                    data = json.loads(response.read().decode("utf-8"))
 
-            latest_version = data.get("tag_name", "")
-            if latest_version and is_newer_version(latest_version, app_info.APP_VERSION):
-                self.signals.update_available.emit(data)
-            else:
-                self.signals.up_to_date.emit()
+                latest_version = data.get("tag_name", "")
+                logger.info("Latest version tag: %s, Current: %s", latest_version, app_info.APP_VERSION)
+                if latest_version and is_newer_version(latest_version, app_info.APP_VERSION):
+                    self.signals.update_available.emit(data)
+                else:
+                    self.signals.up_to_date.emit()
+                return
 
-        except Exception as e:
-            logger.error("Update check failed: %s", e)
-            self.signals.error.emit(str(e))
+            except Exception as e:
+                logger.exception("Update check failed with exception: %s", e)
+                last_error = str(e)
+
+        self.signals.error.emit(last_error or "Unknown error")
 
 
 class DownloadUpdateSignals(QObject):
@@ -95,6 +114,7 @@ class DownloadUpdateWorker(QRunnable):
     def run(self):
         """Download the file to a temp directory."""
         try:
+            logger.info("Download started: %s -> %s", self.download_url, self.asset_name)
             temp_dir = os.path.join(tempfile.gettempdir(), "WAC-Crawl-Update")
             os.makedirs(temp_dir, exist_ok=True)
             filepath = os.path.join(temp_dir, self.asset_name)
@@ -113,9 +133,10 @@ class DownloadUpdateWorker(QRunnable):
                     out_file.write(chunk)
 
             if not self.is_cancelled:
+                logger.info("Download completed: %s", filepath)
                 self.signals.download_complete.emit(filepath)
         except Exception as e:
-            logger.error("Download failed: %s", e)
+            logger.exception("Download failed with exception: %s", e)
             self.signals.error.emit(str(e))
 
 
@@ -135,6 +156,7 @@ def show_update_dialog(parent, release_data: dict, is_manual: bool):
             break
 
     if not installer_asset:
+        logger.warning("Missing installer asset in latest release")
         if is_manual:
             QMessageBox.warning(
                 parent, "Update Error", "No Windows installer asset found in the latest release."
@@ -194,6 +216,7 @@ def _start_download(parent, download_url: str, asset_name: str):
         )
         if reply == QMessageBox.StandardButton.Yes:
             # Launch the installer
+            logger.info("Launching installer: %s", filepath)
             subprocess.Popen([filepath])
             # Exit the app
             QApplication.quit()
@@ -218,15 +241,47 @@ class UpdateManager(QObject):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent_window = parent
+        self._check_in_progress = False
+        self._worker = None
+        self._progress_dialog = None
 
     def check_for_updates(self, is_manual: bool = False):
         """Check for updates in a background thread."""
-        worker = UpdateCheckWorker()
+        logger.info("Update check started (manual=%s)", is_manual)
+
+        if self._check_in_progress:
+            if is_manual:
+                QMessageBox.information(
+                    self.parent_window, "Update Check", "An update check is already running."
+                )
+            return
+
+        self._check_in_progress = True
+        self._worker = UpdateCheckWorker(max_attempts=2 if is_manual else 1)
+
+        if is_manual:
+            self._progress_dialog = QProgressDialog("Checking for updates...", "", 0, 0, self.parent_window)
+            self._progress_dialog.setCancelButton(None)
+            self._progress_dialog.setWindowTitle("Checking for Updates")
+            self._progress_dialog.setMinimumDuration(0)
+            self._progress_dialog.setModal(True)
+            self._progress_dialog.show()
+
+        def cleanup():
+            self._check_in_progress = False
+            self._worker = None
+            if self._progress_dialog:
+                self._progress_dialog.accept()
+                self._progress_dialog = None
 
         def on_update_available(data):
+            logger.info("Update check finished: update available")
+            cleanup()
             show_update_dialog(self.parent_window, data, is_manual)
 
         def on_up_to_date():
+            logger.info("Update check finished: up to date")
+            cleanup()
             if is_manual:
                 QMessageBox.information(
                     self.parent_window,
@@ -235,13 +290,16 @@ class UpdateManager(QObject):
                 )
 
         def on_error(err_msg):
+            logger.error("Update check failed: %s", err_msg)
+            cleanup()
             if is_manual:
+                friendly_msg = map_network_error(err_msg)
                 QMessageBox.warning(
-                    self.parent_window, "Update Error", f"Could not check for updates:\n{err_msg}"
+                    self.parent_window, "Update Error", f"Could not check for updates:\n{friendly_msg}"
                 )
 
-        worker.signals.update_available.connect(on_update_available)
-        worker.signals.up_to_date.connect(on_up_to_date)
-        worker.signals.error.connect(on_error)
+        self._worker.signals.update_available.connect(on_update_available)
+        self._worker.signals.up_to_date.connect(on_up_to_date)
+        self._worker.signals.error.connect(on_error)
 
-        QThreadPool.globalInstance().start(worker)
+        QThreadPool.globalInstance().start(self._worker)

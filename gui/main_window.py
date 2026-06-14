@@ -7,14 +7,12 @@ graceful close handling during active crawl operations.
 
 import logging
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
     QSizePolicy,
     QStackedWidget,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -58,9 +56,7 @@ class MainWindow(QMainWindow):
         self._update_manager = UpdateManager(self)
 
         self._setup_window()
-        self._setup_menubar()
-        self._setup_toolbar()
-        self._setup_pages()
+        self._setup_ui()
         self._apply_stored_theme()
 
     def _setup_window(self) -> None:
@@ -76,30 +72,66 @@ class MainWindow(QMainWindow):
             from PySide6.QtGui import QIcon
             self.setWindowIcon(QIcon(icon_path))
 
-    def _setup_menubar(self) -> None:
-        """Create the Help menu."""
+    def _setup_ui(self) -> None:
+        """Configure the central widget with a top bar and a stacked widget."""
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        self._main_layout = QVBoxLayout(central_widget)
+        self._main_layout.setContentsMargins(0, 0, 0, 0)
+        self._main_layout.setSpacing(0)
+
+        self._setup_top_bar()
+        self._setup_pages()
+
+    def _setup_top_bar(self) -> None:
+        """Create the top navigation bar with a hamburger menu and theme toggle."""
+        from PySide6.QtWidgets import QToolButton, QMenu
         from PySide6.QtGui import QAction
-        import webbrowser
-        import app_info
         from gui.about_dialog import show_about_dialog
 
-        menubar = self.menuBar()
-        help_menu = menubar.addMenu("Help")
+        top_bar = QWidget()
+        top_bar.setObjectName("topBar")
+        layout = QHBoxLayout(top_bar)
+        layout.setContentsMargins(10, 5, 10, 5)
 
-        # Check for Updates
+        self.menu_button = QToolButton()
+        self.menu_button.setText("☰")
+        self.menu_button.setObjectName("menuButton")
+        self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+
+        menu = QMenu(self.menu_button)
+
         check_update_action = QAction("Check for Updates", self)
         check_update_action.triggered.connect(self._manual_check_updates)
-        help_menu.addAction(check_update_action)
+        menu.addAction(check_update_action)
 
-        # Open GitHub Releases
-        open_github_action = QAction("Open GitHub Releases", self)
-        open_github_action.triggered.connect(lambda: webbrowser.open(app_info.RELEASES_URL))
-        help_menu.addAction(open_github_action)
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from app_info import get_log_dir
+        open_log_action = QAction("Open Log Folder", self)
+        open_log_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_log_dir()))))
+        menu.addAction(open_log_action)
 
-        # About
         about_action = QAction("About", self)
         about_action.triggered.connect(lambda: show_about_dialog(self))
-        help_menu.addAction(about_action)
+        menu.addAction(about_action)
+
+        self.menu_button.setMenu(menu)
+        layout.addWidget(self.menu_button)
+
+        # Spacer
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        layout.addWidget(spacer)
+
+        # Theme toggle
+        config = self._config_store.load()
+        initial_theme = config.theme if config.theme in ("dark", "light") else "dark"
+        self._theme_toggle = ThemeToggle(initial_theme=initial_theme)
+        self._theme_toggle.theme_changed.connect(self._on_theme_changed)
+        layout.addWidget(self._theme_toggle)
+
+        self._main_layout.addWidget(top_bar)
 
     def _manual_check_updates(self) -> None:
         self._update_manager.check_for_updates(is_manual=True)
@@ -107,32 +139,10 @@ class MainWindow(QMainWindow):
     def _check_updates_silently(self) -> None:
         self._update_manager.check_for_updates(is_manual=False)
 
-    def _setup_toolbar(self) -> None:
-        """Create toolbar with ThemeToggle positioned at the top-right."""
-        toolbar = QToolBar("Theme")
-        toolbar.setMovable(False)
-        toolbar.setFloatable(False)
-
-        # Load stored theme to initialize toggle state
-        config = self._config_store.load()
-        initial_theme = config.theme if config.theme in ("dark", "light") else "dark"
-
-        # Add spacer to push toggle to the right
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        toolbar.addWidget(spacer)
-
-        # Add theme toggle
-        self._theme_toggle = ThemeToggle(initial_theme=initial_theme)
-        self._theme_toggle.theme_changed.connect(self._on_theme_changed)
-        toolbar.addWidget(self._theme_toggle)
-
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
-
     def _setup_pages(self) -> None:
         """Create QStackedWidget and add the LoginPage."""
         self._stack = QStackedWidget()
-        self.setCentralWidget(self._stack)
+        self._main_layout.addWidget(self._stack)
 
         # Create login page (always present)
         self._login_page = LoginPage(
