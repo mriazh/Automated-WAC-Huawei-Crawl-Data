@@ -14,3 +14,4 @@ list_switch.txt
 # Build output
 dist/
 build/temp/
+output/
