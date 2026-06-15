@@ -1,7 +1,7 @@
 """Main application window for WAC Huawei LLDP Crawl Data GUI.
 
 Provides the top-level QMainWindow with a QStackedWidget for page navigation
-between LoginPage and CrawlPage, a ThemeToggle in the toolbar area, and
+between LoginPage and CrawlPage, a ThemeToggle in the top bar, and
 graceful close handling during active crawl operations.
 """
 

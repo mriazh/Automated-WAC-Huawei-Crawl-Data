@@ -39,5 +39,5 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 
 [UninstallDelete]
 ; Only delete application files in the install directory.
-; Do NOT delete %APPDATA%/WAC-Crawl/ to preserve user config (config.json).
+; Do NOT delete %APPDATA%/WAC-Crawl/ to preserve user config (config.json) or %LOCALAPPDATA%/WAC-Crawl/ to preserve logs.
 Type: filesandordirs; Name: "{app}"

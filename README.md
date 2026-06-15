@@ -33,10 +33,10 @@ Choose one of the two options below:
 ### Option A: Download EXE (no Python needed)
 
 1. Go to [Releases](https://github.com/mriazh/Automated-WAC-Huawei-Crawl-Data/releases)
-2. Download `WAC-Crawl.zip` from the latest release
-3. Extract the ZIP to any folder
-4. Inside you'll find:
-   - `WAC-Crawl.exe` — the application
+2. Choose one of the downloads:
+   - **Recommended:** Download `WAC-Crawl-Setup-v1.0.1.exe` and run the installer. This is used by the in-app updater.
+   - **Portable:** Download `WAC-Crawl-Portable-v1.0.1.zip`, extract it to any folder, and run `WAC-Crawl.exe` manually.
+3. You will also need to prepare your input files:
    - `list_ap.txt` — AP list template (edit this)
    - `list_switch.txt` — switch list template (edit this)
 
@@ -134,7 +134,7 @@ ASW01-CORE	198.51.100.1
 
 - Output CSV is saved to your selected output directory as `lldp_result.csv`
 - Summary shows multi-neighbor (double) APs at the end of each crawl
-- Detailed log is saved to `crawl.log` in the application folder
+- Runtime log is saved to `%LOCALAPPDATA%\WAC-Crawl\crawl.log` and can be opened from the app menu via "Open Log Folder"
 
 ---
 
@@ -151,7 +151,7 @@ ASW01-CORE	198.51.100.1
 | Auto-reconnect | If SSH drops mid-crawl, reconnects and continues |
 | Resume mode | Skips already-crawled APs on re-run |
 | Graceful shutdown | Saves partial results on Stop, close, or Ctrl+C |
-| Detailed logging | Full debug log in `crawl.log` |
+| Detailed logging | Full debug log in `%LOCALAPPDATA%\WAC-Crawl\crawl.log` (accessible via Open Log Folder) |
 
 ---
 
@@ -179,9 +179,10 @@ ASW01-CORE	198.51.100.1
 ## Updates
 
 - App checks GitHub Releases for updates on startup.
-- Manual check is available from Help → Check for Updates.
-- Updates download the Windows installer from GitHub Releases.
+- Manual check is available from `☰ → Check for Updates`.
+- Updates download the Windows installer (`WAC-Crawl-Setup-*.exe`) from GitHub Releases.
 - The app closes and launches the installer; the installer performs the update.
+- *Note: The portable ZIP is not used by the in-app updater.*
 - No Python or Git is required for users.
 
 ---
@@ -190,10 +191,17 @@ ASW01-CORE	198.51.100.1
 
 ```bash
 pip install pyinstaller
-pyinstaller build/build.spec --distpath dist --workpath build/temp
+build_exe.bat
 ```
 
-Output: `dist/WAC-Crawl/WAC-Crawl.exe`
+To build the Windows installer:
+```bash
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" build\installer.iss
+```
+
+Outputs:
+- Executable: `dist\WAC-Crawl\WAC-Crawl.exe`
+- Installer: `output\WAC-Crawl-Setup-v1.0.1.exe`
 
 ---
 
@@ -221,6 +229,8 @@ Output: `dist/WAC-Crawl/WAC-Crawl.exe`
 ├── build/
 │   ├── build.spec       # PyInstaller spec
 │   └── installer.iss    # Inno Setup installer script
+├── output/              # Generated installers (ignored)
+├── build_exe.bat        # Build script for PyInstaller
 ├── tests/               # Unit & property-based tests
 ├── list_ap-example.txt  # AP list template
 ├── list_switch-example.txt  # Switch list template
