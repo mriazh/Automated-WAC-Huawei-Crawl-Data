@@ -2,7 +2,7 @@
 ; Packages the PyInstaller --onedir output into a Windows installer
 
 #define MyAppName "WAC Huawei LLDP Crawl Data"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "mriazh"
 #define MyAppExeName "WAC-Crawl.exe"
 
@@ -13,7 +13,7 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\WAC-Crawl
 DefaultGroupName={#MyAppName}
-OutputBaseFilename=WAC-Crawl-Setup-v1.0.1
+OutputBaseFilename=WAC-Crawl-Setup-v1.0.2
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

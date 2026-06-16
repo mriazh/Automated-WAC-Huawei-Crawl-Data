@@ -34,8 +34,8 @@ Choose one of the two options below:
 
 1. Go to [Releases](https://github.com/mriazh/Automated-WAC-Huawei-Crawl-Data/releases)
 2. Choose one of the downloads:
-   - **Recommended:** Download `WAC-Crawl-Setup-v1.0.1.exe` and run the installer. This is used by the in-app updater.
-   - **Portable:** Download `WAC-Crawl-Portable-v1.0.1.zip`, extract it to any folder, and run `WAC-Crawl.exe` manually.
+   - **Recommended:** Download `WAC-Crawl-Setup-v1.0.2.exe` and run the installer. This is used by the in-app updater.
+   - **Portable:** Download `WAC-Crawl-Portable-v1.0.2.zip`, extract it to any folder, and run `WAC-Crawl.exe` manually.
 3. You will also need to prepare your input files:
    - `list_ap.txt` — AP list template (edit this)
    - `list_switch.txt` — switch list template (edit this)
@@ -78,7 +78,8 @@ AP-BUILDING2-L1-OUT01	10.0.1.11	1
 AP-OFFLINE-01	--	2
 ```
 
-> - Use `--` as IP for offline/unreachable APs (they will be skipped)
+> - Use `--` as IP for APs where the IP is unknown.
+>   The app will still try to connect via the WAC AP ID. If the WAC resolves the IP, `list_ap.txt` will be updated automatically.
 > - The ID is the AP ID in the WAC (used for `stelnet ap ap-id {ID}`)
 > - You can get this data from WAC command: `display ap all`
 
@@ -164,7 +165,7 @@ ASW01-CORE	198.51.100.1
 | `Not an SSH server` | Port is open but not SSH — check port number |
 | `Not a WAC device` | SSH login OK but device is not a WAC |
 | AP shows `FAILED: Timeout` | AP may be behind NAT — takes longer to connect |
-| AP shows `Login failed` | AP is offline or unreachable from WAC |
+| AP shows `Login failed` | AP is unreachable from WAC (even by ID) |
 
 ---
 
@@ -201,7 +202,7 @@ To build the Windows installer:
 
 Outputs:
 - Executable: `dist\WAC-Crawl\WAC-Crawl.exe`
-- Installer: `output\WAC-Crawl-Setup-v1.0.1.exe`
+- Installer: `output\WAC-Crawl-Setup-v1.0.2.exe`
 
 ---
 

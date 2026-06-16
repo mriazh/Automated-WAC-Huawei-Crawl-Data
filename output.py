@@ -147,7 +147,7 @@ def print_summary(results: list[CrawlResult], filepath: str,
     if resumed_count > 0:
         print(f"Previously completed: {resumed_count}")
     print(f"Total APs processed this run: {total}")
-    print(f"Skipped (offline): {skipped}")
+    print(f"Skipped: {skipped}")
     print(f"Successful: {successful}")
     print(f"Failed: {failed}")
     if resumed_count > 0:

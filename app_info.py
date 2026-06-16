@@ -12,7 +12,7 @@ def get_log_dir() -> Path:
 
 
 APP_NAME = "WAC Huawei LLDP Crawl Data"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 APP_BUILD_DATE = "2026"
 GITHUB_REPO = "mriazh/Automated-WAC-Huawei-Crawl-Data"
 RELEASES_URL = "https://github.com/mriazh/Automated-WAC-Huawei-Crawl-Data/releases"

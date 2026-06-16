@@ -1,7 +1,7 @@
 """Crawl engine for WAC Huawei LLDP Crawl Data tool.
 
-Orchestrates AP iteration, executes crawl sequence per AP,
-maps results to switch IPs via the switch dictionary.
+Orchestrates AP iteration, resolves "--" IPs by AP ID, and executes
+crawl sequence per AP, mapping results to switch IPs.
 """
 
 import logging
@@ -44,6 +44,53 @@ class CrawlResult:
     local_intf: str = "N/A"
     neighbor_intf: str = "N/A"
 
+def update_ap_list_ip_safely(list_path: str, ap_name: str, ap_id: int, resolved_ip: str) -> None:
+    """Safely update list_ap.txt with resolved IP, preserving format."""
+    import os
+    import tempfile
+    import shutil
+
+    if not list_path or resolved_ip in ("N/A", "--"):
+        return
+
+    try:
+        if not os.path.exists(list_path):
+            return
+
+        updated = False
+        dir_name = os.path.dirname(list_path)
+
+        with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as temp_f:
+            with open(list_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip() or line.startswith("#"):
+                        temp_f.write(line)
+                        continue
+
+                    parts = line.strip("\r\n").split("\t")
+                    if len(parts) >= 3:
+                        name = parts[0].strip()
+                        ip = parts[1].strip()
+                        aid = parts[2].strip()
+
+                        if name == ap_name and aid == str(ap_id):
+                            if updated:
+                                logger.warning("Multiple rows matched AP %s (ID %s). Only the first was updated.", ap_name, ap_id)
+                            elif ip == "--" or not ip:
+                                parts[1] = resolved_ip
+                                line = "\t".join(parts) + "\n"
+                                logger.info("Updated AP IP in list file: %s ID=%s -> %s", name, aid, resolved_ip)
+                                updated = True
+                    temp_f.write(line)
+
+        if updated:
+            shutil.move(temp_f.name, list_path)
+        else:
+            os.remove(temp_f.name)
+
+    except Exception as e:
+        logger.warning("Failed to safely update list_ap file: %s", e)
+
 
 def crawl_all_aps(
     session: SSHSession,
@@ -54,11 +101,12 @@ def crawl_all_aps(
     progress_callback: Callable[[CrawlResult], None] | None = None,
     stop_check: Callable[[], bool] | None = None,
     use_tqdm: bool = True,
+    ap_list_path: str | None = None,
 ) -> list[CrawlResult]:
     """Iterate through all APs, crawl LLDP data, return results.
 
     Uses tqdm progress bar (if available and use_tqdm=True) with colorful status output.
-    Skips offline APs and already-completed APs (resume mode).
+    Attempts APs with unknown IPs (--) by AP ID and skips already-completed APs (resume mode).
     Auto-reconnects SSH if connection drops.
     Returns partial results on KeyboardInterrupt or when stop_check returns True.
 
@@ -100,28 +148,18 @@ def crawl_all_aps(
 
             logger.info("Processing AP %d/%d: %s (ID: %d, IP: %s)", n, total, ap.name, ap.ap_id, ap.ip)
 
-            # Skip offline APs
+            # Bypass offline skip — try connecting by AP ID
             if ap.is_offline:
-                if pbar is not None:
-                    pbar.write(f"  {ANSI_YELLOW}⏭️{ANSI_RESET}  [{n}/{total}] {ap.name} {ANSI_DIM}— offline, skipped{ANSI_RESET}")
-                logger.info("Skipped AP '%s' — no IP assigned", ap.name)
-                result = CrawlResult(
-                    ap_name=ap.name,
-                    ap_ip=ap.ip,
-                    switch_name="N/A",
-                    switch_ip="N/A",
-                    status="skipped",
-                )
-                results.append(result)
-                if progress_callback is not None:
-                    progress_callback(result)
-                if pbar is not None:
-                    pbar.update(1)
-                continue
+                logger.info("AP '%s' has unknown IP ('--') — will attempt to resolve via AP ID", ap.name)
 
             # Crawl online AP
             try:
+                original_ip = ap.ip
                 ap_results = crawl_single_ap(session, ap, switch_dict, config)
+
+                if ap.ip != original_ip and ap_list_path:
+                    update_ap_list_ip_safely(ap_list_path, ap.name, ap.ap_id, ap.ip)
+
                 success_names = [r.switch_name for r in ap_results if r.status == "success"]
                 failed_results_ap = [r for r in ap_results if r.status == "failed"]
 
@@ -161,7 +199,10 @@ def crawl_all_aps(
                     if reconnected:
                         # Retry this AP after reconnect
                         try:
+                            original_ip_retry = ap.ip
                             ap_results = crawl_single_ap(session, ap, switch_dict, config)
+                            if ap.ip != original_ip_retry and ap_list_path:
+                                update_ap_list_ip_safely(ap_list_path, ap.name, ap.ap_id, ap.ip)
                             success_names = [r.switch_name for r in ap_results if r.status == "success"]
                             if success_names:
                                 neighbors_str = ", ".join(success_names)
@@ -314,9 +355,15 @@ def crawl_single_ap(
             auto_respond=auto_respond_map,
         )
 
+        import re as _re
+        match = _re.search(r"Trying\s+(\d{1,3}(?:\.\d{1,3}){3})", output)
+        if match:
+            resolved_ip = match.group(1)
+            logger.info("Resolved IP for AP '%s' (ID: %d): %s", ap.name, ap.ap_id, resolved_ip)
+            ap.ip = resolved_ip
+
         # Check if we got a WAC system prompt instead of AP prompt
         # This means stelnet failed (e.g., "Login failed", "Error:")
-        import re as _re
         if _re.search(WAC_SYSTEM_PROMPT, output) and not _re.search(AP_PROMPT, output):
             # Extract the error message from WAC output
             error_detail = "AP unreachable via stelnet"

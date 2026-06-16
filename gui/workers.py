@@ -36,6 +36,7 @@ class CrawlWorker(QThread):
         switch_dict: dict[str, str],
         config: Config,
         already_done: set[str],
+        ap_list_path: str | None = None,
     ):
         """Initialize CrawlWorker with crawl parameters.
 
@@ -52,6 +53,7 @@ class CrawlWorker(QThread):
         self._switch_dict = switch_dict
         self._config = config
         self._already_done = already_done
+        self._ap_list_path = ap_list_path
         self._stop_event = threading.Event()
         self._current_count = 0
         self._total = len([ap for ap in ap_list if ap.name not in already_done])
@@ -71,6 +73,7 @@ class CrawlWorker(QThread):
                 progress_callback=self._on_result,
                 stop_check=self._should_stop,
                 use_tqdm=False,
+                ap_list_path=self._ap_list_path,
             )
 
             if self._should_stop():
@@ -110,7 +113,7 @@ class CrawlWorker(QThread):
             else:
                 detail = "No neighbor"
         elif result.status == "skipped":
-            detail = "offline — no IP"
+            detail = "IP unknown — trying AP ID"
         else:
             detail = result.error[:80] if result.error else "unknown error"
 

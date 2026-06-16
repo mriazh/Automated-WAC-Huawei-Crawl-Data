@@ -187,7 +187,7 @@ class TestPrintSummary:
         output = capsys.readouterr().out
         assert "Total APs processed this run: 3" in output
         assert "Successful: 1" in output
-        assert "Skipped (offline): 1" in output
+        assert "Skipped: 1" in output
         assert "Failed: 1" in output
 
     def test_summary_shows_output_filepath(self, capsys):
@@ -214,7 +214,7 @@ class TestPrintSummary:
         output = capsys.readouterr().out
         assert "Total APs processed this run: 6" in output
         assert "Successful: 2" in output
-        assert "Skipped (offline): 3" in output
+        assert "Skipped: 3" in output
         assert "Failed: 1" in output
 
     def test_resume_summary(self, capsys):

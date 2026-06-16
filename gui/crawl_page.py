@@ -321,7 +321,7 @@ class CrawlPage(QWidget):
             return
 
         valid_count = 0
-        offline_count = 0
+        unknown_ip_count = 0
         malformed_lines = []
 
         try:
@@ -349,7 +349,7 @@ class CrawlPage(QWidget):
 
                     valid_count += 1
                     if parts[1].strip() == "--":
-                        offline_count += 1
+                        unknown_ip_count += 1
 
         except Exception as e:
             self._ap_info_label.setText(f"✗ Error reading file: {e}")
@@ -360,11 +360,11 @@ class CrawlPage(QWidget):
             return
 
         # Build result message
-        online_count = valid_count - offline_count
-        if offline_count > 0:
-            parts_msg = [f"✓ {valid_count} APs detected ({online_count} online, {offline_count} offline — no IP)"]
+        known_ip_count = valid_count - unknown_ip_count
+        if unknown_ip_count > 0:
+            parts_msg = [f"✓ {valid_count} APs detected ({known_ip_count} with IP, {unknown_ip_count} IP unknown)"]
         else:
-            parts_msg = [f"✓ {valid_count} APs detected (all online)"]
+            parts_msg = [f"✓ {valid_count} APs detected (all with IP)"]
 
         if malformed_lines:
             parts_msg.append(f"⚠ {len(malformed_lines)} lines skipped:")
@@ -529,6 +529,7 @@ class CrawlPage(QWidget):
                 switch_dict=switch_dict,
                 config=config,
                 already_done=already_done,
+                ap_list_path=ap_path,
             )
             # Override worker's total to be full AP count minus resumed
             # and set offset so numbering continues
@@ -757,7 +758,7 @@ class CrawlPage(QWidget):
 
             skipped_results = [r for r in this_run if r.status == "skipped"]
             if skipped_results:
-                logger.info("  --- Skipped APs (offline) ---")
+                logger.info("  --- Skipped APs ---")
                 for r in skipped_results:
                     logger.info("  %s (%s)", r.ap_name, r.ap_ip)
                 logger.info("")

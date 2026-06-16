@@ -26,15 +26,19 @@ def make_ap(name="AP-TEST", ip="10.0.0.1", ap_id=0, offline=False):
 
 
 class TestCrawlAllAps:
-    def test_skips_offline_aps(self):
+    def test_does_not_skip_offline_aps_but_processes_them(self):
         session = MagicMock()
         ap_list = [make_ap("AP-OFF", "--", 0, offline=True)]
         config = make_config()
 
-        results = crawl_all_aps(session, ap_list, {}, config)
+        with patch("crawler.crawl_single_ap") as mock_crawl:
+            mock_crawl.return_value = [CrawlResult("AP-OFF", "198.51.100.5", "SW-1", "10.0.1.1", "success")]
+            results = crawl_all_aps(session, ap_list, {}, config)
+
         assert len(results) == 1
-        assert results[0].status == "skipped"
+        assert results[0].status == "success"
         assert results[0].ap_name == "AP-OFF"
+        mock_crawl.assert_called_once()
 
     def test_skips_already_done(self):
         session = MagicMock()
@@ -114,6 +118,24 @@ class TestCrawlSingleAp:
         assert results[0].switch_ip == "10.0.1.1"
         assert results[0].local_intf == "GE0/0/0"
         assert results[0].neighbor_intf == "1"
+
+    def test_parses_resolved_ip_from_stelnet(self):
+        session = MagicMock()
+        ap = make_ap("AP-TEST", "--", 5)
+        switch_dict = {"SW-TEST": "10.0.1.1"}
+        config = make_config()
+
+        output_with_ip = "Trying 198.51.100.152 ...\nPress CTRL+K to abort\nConnected to 198.51.100.152 ...\nWarning: The initial password ...\nContinue to access it? [Y/N]:\n<AP-TEST>"
+        session.wait_for_prompt.return_value = output_with_ip
+        session.send_command.return_value = "Local Intf         Neighbor Dev                     Neighbor Intf             Exptime\nGE0/0/0            SW-TEST                          1                         100\n<AP-TEST>\n"
+
+        with patch("crawler.exit_ap_session"), patch("crawler._drain_buffer"):
+            results = crawl_single_ap(session, ap, switch_dict, config)
+
+        assert len(results) == 1
+        assert results[0].status == "success"
+        assert results[0].ap_ip == "198.51.100.152"
+        assert ap.ip == "198.51.100.152"
 
     def test_switch_not_in_dict(self):
         session = MagicMock()
@@ -212,3 +234,31 @@ class TestExitApSession:
         session = MagicMock()
         session.send_command.side_effect = [TimeoutError("quit"), TimeoutError("return")]
         assert exit_ap_session(session) is False
+
+class TestUpdateApListIpSafely:
+    def test_updates_missing_ip_preserves_format(self, tmp_path):
+        from crawler import update_ap_list_ip_safely
+        list_path = tmp_path / "list_ap.txt"
+
+        content = (
+            "# A comment\n"
+            "\n"
+            "AP-1\t--\t100\n"
+            "AP-2\t\t200\n"
+            "AP-3\t192.168.1.1\t300\n"
+        )
+        list_path.write_text(content, encoding="utf-8")
+
+        # Update AP-1
+        update_ap_list_ip_safely(str(list_path), "AP-1", 100, "198.51.100.100")
+
+        new_content = list_path.read_text(encoding="utf-8")
+        assert "AP-1\t198.51.100.100\t100" in new_content
+        assert "# A comment" in new_content
+        assert "\n\n" in new_content
+        assert "AP-3\t192.168.1.1\t300" in new_content
+
+        # Try updating AP-3 (should not overwrite existing IP)
+        update_ap_list_ip_safely(str(list_path), "AP-3", 300, "10.0.0.99")
+        new_content = list_path.read_text(encoding="utf-8")
+        assert "AP-3\t192.168.1.1\t300" in new_content

@@ -133,12 +133,14 @@ class SSHSession:
             TimeoutError: If timeout exceeded without matching any pattern.
         """
         buffer = ""
+        full_buffer = ""
         start_time = time.time()
 
         while time.time() - start_time < timeout:
             if self.channel.recv_ready():
                 chunk = self.channel.recv(65535).decode("utf-8", errors="replace")
                 buffer += chunk
+                full_buffer += chunk
 
                 # Check auto-respond patterns first
                 if auto_respond:
@@ -158,7 +160,7 @@ class SSHSession:
                 # Check expected prompt patterns
                 for pattern in patterns:
                     if re.search(pattern, buffer):
-                        return buffer
+                        return full_buffer
             else:
                 time.sleep(0.1)
 

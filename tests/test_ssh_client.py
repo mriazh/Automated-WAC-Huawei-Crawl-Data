@@ -416,6 +416,35 @@ class TestWaitForPrompt:
         )
         assert "<WAC-CONTROLLER>" in result
 
+    def test_wait_for_prompt_full_buffer_with_auto_respond(self, config, mock_paramiko):
+        """wait_for_prompt() returns full buffer including text before auto-response."""
+        session = SSHSession(config)
+
+        with patch("ssh_client.time.sleep"):
+            session.connect()
+
+        # Simulate Y/N prompt output followed by final AP prompt
+        recv_responses = [
+            b"Trying 198.51.100.152 ...\nContinue to access it? [Y/N]:",
+            b"\nConnected\n<AP-TEST>",
+        ]
+        mock_paramiko["channel"].recv_ready.return_value = True
+        mock_paramiko["channel"].recv.side_effect = recv_responses
+
+        result = session.wait_for_prompt(
+            patterns=[AP_PROMPT],
+            timeout=10,
+            auto_respond={YN_PROMPT: "Y"},
+        )
+
+        # Should have auto-responded with Y
+        send_calls = mock_paramiko["channel"].send.call_args_list
+        assert any(c[0][0] == "Y\n" for c in send_calls)
+
+        # Returned result must contain the full output
+        assert "Trying 198.51.100.152" in result
+        assert "<AP-TEST>" in result
+
 
 # ─── enter_system_view Tests (Requirements 4.4, 4.5) ───
 
